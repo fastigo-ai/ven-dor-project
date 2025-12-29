@@ -1,0 +1,194 @@
+import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { z } from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Mail, Lock, Eye, EyeOff, AlertCircle, Clock, XCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import AuthLayout from '@/components/AuthLayout';
+import { useVendor } from '@/contexts/VendorContext';
+import { toast } from '@/hooks/use-toast';
+
+const loginSchema = z.object({
+  email: z.string().email('Please enter a valid email address'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
+
+const Login = () => {
+  const navigate = useNavigate();
+  const { vendors, setCurrentVendor, getVendorPassword } = useVendor();
+  const [showPassword, setShowPassword] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<{
+    type: 'pending' | 'rejected' | 'error';
+    message: string;
+  } | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+  });
+
+  const onSubmit = async (data: LoginFormData) => {
+    setStatusMessage(null);
+    
+    // Simulate API delay
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    // Find vendor by email
+    const vendor = vendors.find(
+      (v) => v.email.toLowerCase() === data.email.toLowerCase()
+    );
+
+    if (!vendor) {
+      setStatusMessage({
+        type: 'error',
+        message: 'Invalid email or password. Please check your credentials.',
+      });
+      return;
+    }
+
+    // Check password
+    const storedPassword = getVendorPassword(vendor.email);
+    if (storedPassword !== data.password) {
+      setStatusMessage({
+        type: 'error',
+        message: 'Invalid email or password. Please check your credentials.',
+      });
+      return;
+    }
+
+    // Check vendor status
+    if (vendor.status === 'pending') {
+      setStatusMessage({
+        type: 'pending',
+        message: 'Your account is under review. Please wait for admin approval.',
+      });
+      return;
+    }
+
+    if (vendor.status === 'rejected') {
+      setStatusMessage({
+        type: 'rejected',
+        message: 'Your registration has been rejected. Please contact support.',
+      });
+      return;
+    }
+
+    // Approved vendor - proceed to dashboard
+    setCurrentVendor(vendor);
+    toast({
+      title: 'Welcome back!',
+      description: `Logged in as ${vendor.companyName}`,
+    });
+    navigate('/dashboard');
+  };
+
+  return (
+    <AuthLayout
+      title="Vendor Login"
+      subtitle="Sign in to access your vendor portal"
+    >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        {statusMessage && (
+          <Alert
+            variant={statusMessage.type === 'error' ? 'destructive' : 'default'}
+            className={
+              statusMessage.type === 'pending'
+                ? 'border-warning bg-warning/10 text-warning-foreground'
+                : statusMessage.type === 'rejected'
+                ? 'border-destructive bg-destructive/10'
+                : ''
+            }
+          >
+            {statusMessage.type === 'pending' && (
+              <Clock className="h-4 w-4 text-warning" />
+            )}
+            {statusMessage.type === 'rejected' && (
+              <XCircle className="h-4 w-4" />
+            )}
+            {statusMessage.type === 'error' && (
+              <AlertCircle className="h-4 w-4" />
+            )}
+            <AlertDescription className="ml-2">
+              {statusMessage.message}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="space-y-2">
+          <Label htmlFor="email">Email Address</Label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              id="email"
+              type="email"
+              placeholder="vendor@company.com"
+              className="pl-10"
+              {...register('email')}
+            />
+          </div>
+          {errors.email && (
+            <p className="text-sm text-destructive">{errors.email.message}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password">Password</Label>
+            <Link
+              to="/forgot-password"
+              className="text-sm text-primary hover:underline"
+            >
+              Forgot password?
+            </Link>
+          </div>
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              id="password"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Enter your password"
+              className="pl-10 pr-10"
+              {...register('password')}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+          {errors.password && (
+            <p className="text-sm text-destructive">{errors.password.message}</p>
+          )}
+        </div>
+
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? 'Signing in...' : 'Sign In'}
+        </Button>
+
+        <div className="text-center text-sm text-muted-foreground">
+          Don't have an account?{' '}
+          <Link to="/register" className="text-primary hover:underline font-medium">
+            Register as Vendor
+          </Link>
+        </div>
+      </form>
+    </AuthLayout>
+  );
+};
+
+export default Login;

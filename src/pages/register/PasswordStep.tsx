@@ -18,7 +18,7 @@ const PasswordStep = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isVerified } = useVendor();
+  const { isVerified, currentEmail, setVendorPassword } = useVendor();
 
   useEffect(() => {
     if (!isVerified) {
@@ -60,6 +60,9 @@ const PasswordStep = () => {
 
     setIsLoading(true);
     await new Promise((resolve) => setTimeout(resolve, 1000));
+    
+    // Store the password
+    setVendorPassword(currentEmail, password);
     
     toast({
       title: "Password Set",
