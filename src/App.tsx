@@ -11,6 +11,9 @@ import PasswordStep from "./pages/register/PasswordStep";
 import CompanyStep from "./pages/register/CompanyStep";
 import PendingApproval from "./pages/PendingApproval";
 import AdminPanel from "./pages/AdminPanel";
+import Login from "./pages/Login";
+import ForgotPassword from "./pages/ForgotPassword";
+import VendorDashboard from "./pages/VendorDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +27,9 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/dashboard" element={<VendorDashboard />} />
             <Route path="/register" element={<EmailStep />} />
             <Route path="/register/verify" element={<VerifyStep />} />
             <Route path="/register/password" element={<PasswordStep />} />

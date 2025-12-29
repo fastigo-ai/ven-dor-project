@@ -24,6 +24,8 @@ interface VendorContextType {
   updateVendorStatus: (id: string, status: 'pending' | 'approved' | 'rejected') => void;
   currentVendor: VendorData | null;
   setCurrentVendor: (vendor: VendorData | null) => void;
+  setVendorPassword: (email: string, password: string) => void;
+  getVendorPassword: (email: string) => string | undefined;
 }
 
 const VendorContext = createContext<VendorContextType | undefined>(undefined);
@@ -39,6 +41,10 @@ export const useVendor = () => {
 export const VendorProvider = ({ children }: { children: ReactNode }) => {
   const [currentEmail, setCurrentEmail] = useState('');
   const [isVerified, setIsVerified] = useState(false);
+  const [vendorPasswords, setVendorPasswords] = useState<Record<string, string>>({
+    'demo@company.com': 'Demo@123',
+    'logistics@fastship.in': 'FastShip@123',
+  });
   const [vendors, setVendors] = useState<VendorData[]>([
     {
       id: '1',
@@ -88,6 +94,14 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
+  const setVendorPassword = (email: string, password: string) => {
+    setVendorPasswords((prev) => ({ ...prev, [email.toLowerCase()]: password }));
+  };
+
+  const getVendorPassword = (email: string) => {
+    return vendorPasswords[email.toLowerCase()];
+  };
+
   return (
     <VendorContext.Provider
       value={{
@@ -100,6 +114,8 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
         updateVendorStatus,
         currentVendor,
         setCurrentVendor,
+        setVendorPassword,
+        getVendorPassword,
       }}
     >
       {children}
