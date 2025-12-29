@@ -1,20 +1,21 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Building2,
-  Package,
-  ShoppingCart,
-  TrendingUp,
+  FolderPlus,
+  Upload,
+  FileSpreadsheet,
   Bell,
   Settings,
   LogOut,
   User,
-  FileText,
   BarChart3,
+  IndianRupee,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,12 +26,19 @@ import {
 } from '@/components/ui/dropdown-menu';
 import Logo from '@/components/Logo';
 import StatusBadge from '@/components/StatusBadge';
-import { useVendor } from '@/contexts/VendorContext';
+import ProjectList from '@/components/vendor/ProjectList';
+import RateCardView from '@/components/vendor/RateCardView';
+import CreateProjectDialog from '@/components/vendor/CreateProjectDialog';
+import CSVUploadDialog from '@/components/vendor/CSVUploadDialog';
+import { useVendor, ProjectData } from '@/contexts/VendorContext';
 import { toast } from '@/hooks/use-toast';
 
 const VendorDashboard = () => {
   const navigate = useNavigate();
-  const { currentVendor, setCurrentVendor } = useVendor();
+  const { currentVendor, setCurrentVendor, projects, calls, rateCards } = useVendor();
+  const [createProjectOpen, setCreateProjectOpen] = useState(false);
+  const [csvUploadOpen, setCSVUploadOpen] = useState(false);
+  const [uploadType, setUploadType] = useState<'bulk' | 'single'>('bulk');
 
   useEffect(() => {
     if (!currentVendor || currentVendor.status !== 'approved') {
@@ -42,6 +50,11 @@ const VendorDashboard = () => {
     return null;
   }
 
+  const vendorProjects = projects.filter((p) => p.vendorId === currentVendor.id);
+  const vendorCalls = calls.filter((c) => 
+    vendorProjects.some((p) => p.id === c.projectId)
+  );
+
   const handleLogout = () => {
     setCurrentVendor(null);
     toast({
@@ -51,46 +64,48 @@ const VendorDashboard = () => {
     navigate('/login');
   };
 
+  const handleViewProject = (project: ProjectData) => {
+    toast({
+      title: project.name,
+      description: `Total calls: ${project.totalCalls}, Amount: ₹${project.totalAmount.toLocaleString()}`,
+    });
+  };
+
+  const handleBulkUpload = () => {
+    setUploadType('bulk');
+    setCSVUploadOpen(true);
+  };
+
+  const handleSingleUpload = () => {
+    setUploadType('single');
+    setCSVUploadOpen(true);
+  };
+
   const stats = [
     {
-      title: 'Total Products',
-      value: '24',
-      change: '+3 this month',
-      icon: Package,
+      title: 'Total Projects',
+      value: vendorProjects.length.toString(),
+      change: `${vendorProjects.filter(p => p.status === 'active').length} active`,
+      icon: BarChart3,
       color: 'text-primary',
       bgColor: 'bg-primary/10',
     },
     {
-      title: 'Active Orders',
-      value: '12',
-      change: '+5 this week',
-      icon: ShoppingCart,
+      title: 'Total Calls',
+      value: vendorCalls.length.toString(),
+      change: `${vendorCalls.filter(c => c.status === 'completed').length} completed`,
+      icon: FileSpreadsheet,
       color: 'text-success',
       bgColor: 'bg-success/10',
     },
     {
-      title: 'Revenue',
-      value: '₹1.2L',
-      change: '+18% vs last month',
-      icon: TrendingUp,
+      title: 'Total Amount',
+      value: `₹${(vendorCalls.reduce((sum, c) => sum + c.orderAmount, 0) / 1000).toFixed(1)}K`,
+      change: 'All projects',
+      icon: IndianRupee,
       color: 'text-accent',
       bgColor: 'bg-accent/10',
     },
-    {
-      title: 'Pending Invoices',
-      value: '3',
-      change: '₹45,000 total',
-      icon: FileText,
-      color: 'text-warning',
-      bgColor: 'bg-warning/10',
-    },
-  ];
-
-  const quickActions = [
-    { label: 'Add Product', icon: Package, onClick: () => {} },
-    { label: 'View Orders', icon: ShoppingCart, onClick: () => {} },
-    { label: 'Analytics', icon: BarChart3, onClick: () => {} },
-    { label: 'Settings', icon: Settings, onClick: () => {} },
   ];
 
   const getInitials = (name: string) => {
@@ -169,7 +184,7 @@ const VendorDashboard = () => {
                 Welcome back, {currentVendor.contactPersonName.split(' ')[0]}!
               </h1>
               <p className="text-muted-foreground mt-1">
-                Here's what's happening with your store today.
+                Manage your projects and delivery calls from here.
               </p>
             </div>
             <StatusBadge status={currentVendor.status} />
@@ -199,7 +214,7 @@ const VendorDashboard = () => {
         </Card>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           {stats.map((stat) => (
             <Card key={stat.title} className="hover:shadow-md transition-shadow">
               <CardContent className="p-6">
@@ -223,27 +238,70 @@ const VendorDashboard = () => {
         </div>
 
         {/* Quick Actions */}
-        <Card>
+        <Card className="mb-8">
           <CardHeader>
             <CardTitle className="text-lg">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {quickActions.map((action) => (
-                <Button
-                  key={action.label}
-                  variant="outline"
-                  className="h-auto py-6 flex flex-col items-center gap-2 hover:bg-primary/5 hover:border-primary/30"
-                  onClick={action.onClick}
-                >
-                  <action.icon className="h-6 w-6 text-primary" />
-                  <span className="text-sm">{action.label}</span>
-                </Button>
-              ))}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <Button
+                variant="outline"
+                className="h-auto py-6 flex flex-col items-center gap-2 hover:bg-primary/5 hover:border-primary/30"
+                onClick={() => setCreateProjectOpen(true)}
+              >
+                <FolderPlus className="h-6 w-6 text-primary" />
+                <span className="text-sm">Create Project</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-auto py-6 flex flex-col items-center gap-2 hover:bg-primary/5 hover:border-primary/30"
+                onClick={handleBulkUpload}
+              >
+                <Upload className="h-6 w-6 text-primary" />
+                <span className="text-sm">Bulk CSV Upload</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-auto py-6 flex flex-col items-center gap-2 hover:bg-primary/5 hover:border-primary/30"
+                onClick={handleSingleUpload}
+              >
+                <FileSpreadsheet className="h-6 w-6 text-primary" />
+                <span className="text-sm">Single Call Upload</span>
+              </Button>
             </div>
           </CardContent>
         </Card>
+
+        {/* Tabbed Content */}
+        <Tabs defaultValue="projects" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="projects">Projects</TabsTrigger>
+            <TabsTrigger value="ratecard">Rate Card</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="projects">
+            <ProjectList 
+              projects={vendorProjects} 
+              onViewProject={handleViewProject}
+            />
+          </TabsContent>
+
+          <TabsContent value="ratecard">
+            <RateCardView rateCards={rateCards} />
+          </TabsContent>
+        </Tabs>
       </main>
+
+      {/* Dialogs */}
+      <CreateProjectDialog 
+        open={createProjectOpen} 
+        onOpenChange={setCreateProjectOpen} 
+      />
+      <CSVUploadDialog 
+        open={csvUploadOpen} 
+        onOpenChange={setCSVUploadOpen}
+        uploadType={uploadType}
+      />
     </div>
   );
 };
