@@ -2,9 +2,18 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import Logo from '@/components/Logo';
 import StatusBadge from '@/components/StatusBadge';
-import { useVendor, VendorData } from '@/contexts/VendorContext';
+import { useVendor, VendorData, RateCard } from '@/contexts/VendorContext';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -26,15 +35,41 @@ import {
   Users,
   Clock,
   ShieldCheck,
+  IndianRupee,
+  FileSpreadsheet,
+  Edit2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 
 const AdminPanel = () => {
-  const { vendors, updateVendorStatus } = useVendor();
+  const { vendors, updateVendorStatus, calls, projects, rateCards, updateRateCard } = useVendor();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [selectedVendor, setSelectedVendor] = useState<VendorData | null>(null);
+  const [editingRate, setEditingRate] = useState<RateCard | null>(null);
+  const [rateForm, setRateForm] = useState({ baseRate: 0, perKmRate: 0, urgentMultiplier: 0 });
+
+  const allCalls = calls.map((call) => {
+    const project = projects.find((p) => p.id === call.projectId);
+    const vendor = vendors.find((v) => v.id === project?.vendorId);
+    return { ...call, project, vendor };
+  });
+
+  const handleRateEdit = (rate: RateCard) => {
+    setEditingRate(rate);
+    setRateForm({ baseRate: rate.baseRate, perKmRate: rate.perKmRate, urgentMultiplier: rate.urgentMultiplier });
+  };
+
+  const handleRateSave = () => {
+    if (editingRate) {
+      updateRateCard(editingRate.id, rateForm);
+      toast({ title: 'Rate Updated', description: `${editingRate.serviceType} rates have been updated.` });
+      setEditingRate(null);
+    }
+  };
 
   const filteredVendors = vendors.filter((vendor) => {
     const matchesSearch =
@@ -164,48 +199,148 @@ const AdminPanel = () => {
           </div>
         </div>
 
-        {/* Vendor List */}
-        <div className="space-y-4">
-          {filteredVendors.length === 0 ? (
-            <div className="text-center py-12 bg-card rounded-xl border border-border">
-              <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-lg font-medium text-foreground">No vendors found</p>
-              <p className="text-muted-foreground">Try adjusting your search or filters</p>
-            </div>
-          ) : (
-            filteredVendors.map((vendor) => (
-              <div
-                key={vendor.id}
-                className="bg-card rounded-xl p-5 shadow-card border border-border hover:border-primary/30 transition-colors cursor-pointer"
-                onClick={() => setSelectedVendor(vendor)}
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-lg gradient-primary flex items-center justify-center text-primary-foreground font-display font-bold text-lg">
-                      {vendor.companyName.charAt(0)}
-                    </div>
-                    <div>
-                      <h3 className="font-display font-semibold text-foreground">
-                        {vendor.companyName}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">{vendor.email}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        GST: {vendor.gstNumber}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <StatusBadge status={vendor.status} />
-                    <span className="text-xs text-muted-foreground hidden sm:block">
-                      {new Date(vendor.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
+        {/* Tabs for different admin sections */}
+        <Tabs defaultValue="vendors" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="vendors">Vendors</TabsTrigger>
+            <TabsTrigger value="calls">All Calls</TabsTrigger>
+            <TabsTrigger value="rates">Rate Cards</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="vendors">
+            {/* Existing vendor list content - moved here */}
+            <div className="space-y-4">
+              {filteredVendors.length === 0 ? (
+                <div className="text-center py-12 bg-card rounded-xl border border-border">
+                  <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-lg font-medium text-foreground">No vendors found</p>
+                  <p className="text-muted-foreground">Try adjusting your search or filters</p>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
+              ) : (
+                filteredVendors.map((vendor) => (
+                  <div
+                    key={vendor.id}
+                    className="bg-card rounded-xl p-5 shadow-card border border-border hover:border-primary/30 transition-colors cursor-pointer"
+                    onClick={() => setSelectedVendor(vendor)}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-lg gradient-primary flex items-center justify-center text-primary-foreground font-display font-bold text-lg">
+                          {vendor.companyName.charAt(0)}
+                        </div>
+                        <div>
+                          <h3 className="font-display font-semibold text-foreground">{vendor.companyName}</h3>
+                          <p className="text-sm text-muted-foreground">{vendor.email}</p>
+                          <p className="text-xs text-muted-foreground mt-1">GST: {vendor.gstNumber}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <StatusBadge status={vendor.status} />
+                        <span className="text-xs text-muted-foreground hidden sm:block">
+                          {new Date(vendor.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="calls">
+            <div className="bg-card rounded-xl border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead>Company</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Project</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allCalls.slice(0, 20).map((call) => (
+                    <TableRow key={call.id}>
+                      <TableCell className="font-medium">{call.vendor?.companyName || 'N/A'}</TableCell>
+                      <TableCell>{call.customerName}</TableCell>
+                      <TableCell>{call.project?.name || 'N/A'}</TableCell>
+                      <TableCell className="text-right font-mono">₹{call.orderAmount}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={cn(
+                          call.status === 'completed' && 'bg-success/10 text-success',
+                          call.status === 'pending' && 'bg-warning/10 text-warning',
+                          call.status === 'assigned' && 'bg-primary/10 text-primary'
+                        )}>
+                          {call.status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="rates">
+            <div className="bg-card rounded-xl border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead>Service Type</TableHead>
+                    <TableHead className="text-right">Base Rate</TableHead>
+                    <TableHead className="text-right">Per KM</TableHead>
+                    <TableHead className="text-right">Urgent (×)</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rateCards.map((card) => (
+                    <TableRow key={card.id}>
+                      <TableCell className="font-medium">{card.serviceType}</TableCell>
+                      <TableCell className="text-right font-mono">₹{card.baseRate}</TableCell>
+                      <TableCell className="text-right font-mono">₹{card.perKmRate}</TableCell>
+                      <TableCell className="text-right font-mono">{card.urgentMultiplier}×</TableCell>
+                      <TableCell className="text-center">
+                        <Button size="sm" variant="ghost" onClick={() => handleRateEdit(card)}>
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+        </Tabs>
       </main>
+
+      {/* Rate Edit Dialog */}
+      <Dialog open={!!editingRate} onOpenChange={() => setEditingRate(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Rate: {editingRate?.serviceType}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label>Base Rate (₹)</Label>
+              <Input type="number" value={rateForm.baseRate} onChange={(e) => setRateForm({ ...rateForm, baseRate: Number(e.target.value) })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Per KM Rate (₹)</Label>
+              <Input type="number" value={rateForm.perKmRate} onChange={(e) => setRateForm({ ...rateForm, perKmRate: Number(e.target.value) })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Urgent Multiplier</Label>
+              <Input type="number" step="0.1" value={rateForm.urgentMultiplier} onChange={(e) => setRateForm({ ...rateForm, urgentMultiplier: Number(e.target.value) })} />
+            </div>
+            <div className="flex gap-3 pt-4">
+              <Button variant="outline" className="flex-1" onClick={() => setEditingRate(null)}>Cancel</Button>
+              <Button className="flex-1" onClick={handleRateSave}>Save Changes</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Vendor Detail Dialog */}
       <Dialog open={!!selectedVendor} onOpenChange={() => setSelectedVendor(null)}>

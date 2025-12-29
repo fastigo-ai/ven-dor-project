@@ -1,5 +1,37 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
+export interface CallData {
+  id: string;
+  projectId: string;
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+  pincode: string;
+  orderAmount: number;
+  status: 'pending' | 'assigned' | 'completed' | 'cancelled';
+  createdAt: Date;
+}
+
+export interface ProjectData {
+  id: string;
+  vendorId: string;
+  name: string;
+  createdAt: Date;
+  status: 'active' | 'completed' | 'on-hold';
+  totalCalls: number;
+  completedCalls: number;
+  totalAmount: number;
+}
+
+export interface RateCard {
+  id: string;
+  serviceType: string;
+  baseRate: number;
+  perKmRate: number;
+  urgentMultiplier: number;
+  isActive: boolean;
+}
+
 export interface VendorData {
   email: string;
   companyName: string;
@@ -26,6 +58,13 @@ interface VendorContextType {
   setCurrentVendor: (vendor: VendorData | null) => void;
   setVendorPassword: (email: string, password: string) => void;
   getVendorPassword: (email: string) => string | undefined;
+  projects: ProjectData[];
+  addProject: (project: Omit<ProjectData, 'id' | 'createdAt' | 'totalCalls' | 'completedCalls' | 'totalAmount'>) => ProjectData;
+  updateProject: (id: string, updates: Partial<ProjectData>) => void;
+  calls: CallData[];
+  addCalls: (calls: Omit<CallData, 'id' | 'createdAt' | 'status'>[]) => void;
+  rateCards: RateCard[];
+  updateRateCard: (id: string, updates: Partial<RateCard>) => void;
 }
 
 const VendorContext = createContext<VendorContextType | undefined>(undefined);
@@ -37,6 +76,73 @@ export const useVendor = () => {
   }
   return context;
 };
+
+const initialRateCards: RateCard[] = [
+  { id: '1', serviceType: 'Standard Delivery', baseRate: 50, perKmRate: 5, urgentMultiplier: 1.5, isActive: true },
+  { id: '2', serviceType: 'Express Delivery', baseRate: 100, perKmRate: 8, urgentMultiplier: 2.0, isActive: true },
+  { id: '3', serviceType: 'Same Day Delivery', baseRate: 150, perKmRate: 10, urgentMultiplier: 2.5, isActive: true },
+  { id: '4', serviceType: 'Bulk Shipment', baseRate: 200, perKmRate: 3, urgentMultiplier: 1.3, isActive: true },
+  { id: '5', serviceType: 'Fragile Items', baseRate: 100, perKmRate: 7, urgentMultiplier: 1.8, isActive: true },
+];
+
+const initialProjects: ProjectData[] = [
+  {
+    id: 'proj-1',
+    vendorId: '2',
+    name: 'Mumbai Metro Deliveries',
+    createdAt: new Date('2024-01-20'),
+    status: 'active',
+    totalCalls: 45,
+    completedCalls: 32,
+    totalAmount: 125000,
+  },
+  {
+    id: 'proj-2',
+    vendorId: '2',
+    name: 'Bangalore Express',
+    createdAt: new Date('2024-01-25'),
+    status: 'active',
+    totalCalls: 28,
+    completedCalls: 15,
+    totalAmount: 78000,
+  },
+];
+
+const initialCalls: CallData[] = [
+  {
+    id: 'call-1',
+    projectId: 'proj-1',
+    customerName: 'Amit Shah',
+    customerPhone: '+91 98765 11111',
+    customerAddress: '123 MG Road, Andheri West',
+    pincode: '400058',
+    orderAmount: 2500,
+    status: 'completed',
+    createdAt: new Date('2024-01-21'),
+  },
+  {
+    id: 'call-2',
+    projectId: 'proj-1',
+    customerName: 'Priya Patel',
+    customerPhone: '+91 98765 22222',
+    customerAddress: '45 Link Road, Bandra',
+    pincode: '400050',
+    orderAmount: 3200,
+    status: 'assigned',
+    createdAt: new Date('2024-01-22'),
+  },
+  {
+    id: 'call-3',
+    projectId: 'proj-2',
+    customerName: 'Rahul Sharma',
+    customerPhone: '+91 98765 33333',
+    customerAddress: '78 Indiranagar, Bangalore',
+    pincode: '560038',
+    orderAmount: 4500,
+    status: 'pending',
+    createdAt: new Date('2024-01-26'),
+  },
+];
 
 export const VendorProvider = ({ children }: { children: ReactNode }) => {
   const [currentEmail, setCurrentEmail] = useState('');
@@ -74,6 +180,9 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
     },
   ]);
   const [currentVendor, setCurrentVendor] = useState<VendorData | null>(null);
+  const [projects, setProjects] = useState<ProjectData[]>(initialProjects);
+  const [calls, setCalls] = useState<CallData[]>(initialCalls);
+  const [rateCards, setRateCards] = useState<RateCard[]>(initialRateCards);
 
   const addVendor = (vendorData: Omit<VendorData, 'id' | 'createdAt' | 'status'>) => {
     const newVendor: VendorData = {
@@ -102,6 +211,63 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
     return vendorPasswords[email.toLowerCase()];
   };
 
+  const addProject = (projectData: Omit<ProjectData, 'id' | 'createdAt' | 'totalCalls' | 'completedCalls' | 'totalAmount'>) => {
+    const newProject: ProjectData = {
+      ...projectData,
+      id: `proj-${Date.now()}`,
+      createdAt: new Date(),
+      totalCalls: 0,
+      completedCalls: 0,
+      totalAmount: 0,
+    };
+    setProjects((prev) => [...prev, newProject]);
+    return newProject;
+  };
+
+  const updateProject = (id: string, updates: Partial<ProjectData>) => {
+    setProjects((prev) =>
+      prev.map((project) =>
+        project.id === id ? { ...project, ...updates } : project
+      )
+    );
+  };
+
+  const addCalls = (newCalls: Omit<CallData, 'id' | 'createdAt' | 'status'>[]) => {
+    const callsWithIds = newCalls.map((call, index) => ({
+      ...call,
+      id: `call-${Date.now()}-${index}`,
+      createdAt: new Date(),
+      status: 'pending' as const,
+    }));
+    setCalls((prev) => [...prev, ...callsWithIds]);
+
+    // Update project stats
+    const projectUpdates: Record<string, { totalCalls: number; totalAmount: number }> = {};
+    callsWithIds.forEach((call) => {
+      if (!projectUpdates[call.projectId]) {
+        const existingProject = projects.find((p) => p.id === call.projectId);
+        projectUpdates[call.projectId] = {
+          totalCalls: existingProject?.totalCalls || 0,
+          totalAmount: existingProject?.totalAmount || 0,
+        };
+      }
+      projectUpdates[call.projectId].totalCalls += 1;
+      projectUpdates[call.projectId].totalAmount += call.orderAmount;
+    });
+
+    Object.entries(projectUpdates).forEach(([projectId, updates]) => {
+      updateProject(projectId, updates);
+    });
+  };
+
+  const updateRateCard = (id: string, updates: Partial<RateCard>) => {
+    setRateCards((prev) =>
+      prev.map((card) =>
+        card.id === id ? { ...card, ...updates } : card
+      )
+    );
+  };
+
   return (
     <VendorContext.Provider
       value={{
@@ -116,6 +282,13 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
         setCurrentVendor,
         setVendorPassword,
         getVendorPassword,
+        projects,
+        addProject,
+        updateProject,
+        calls,
+        addCalls,
+        rateCards,
+        updateRateCard,
       }}
     >
       {children}
