@@ -241,22 +241,32 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
     }));
     setCalls((prev) => [...prev, ...callsWithIds]);
 
-    // Update project stats
-    const projectUpdates: Record<string, { totalCalls: number; totalAmount: number }> = {};
-    callsWithIds.forEach((call) => {
-      if (!projectUpdates[call.projectId]) {
-        const existingProject = projects.find((p) => p.id === call.projectId);
-        projectUpdates[call.projectId] = {
-          totalCalls: existingProject?.totalCalls || 0,
-          totalAmount: existingProject?.totalAmount || 0,
-        };
-      }
-      projectUpdates[call.projectId].totalCalls += 1;
-      projectUpdates[call.projectId].totalAmount += call.orderAmount;
-    });
+    // Update project stats using functional update to avoid stale state
+    setProjects((prevProjects) => {
+      const projectUpdates: Record<string, { totalCalls: number; totalAmount: number }> = {};
+      
+      callsWithIds.forEach((call) => {
+        if (!projectUpdates[call.projectId]) {
+          const existingProject = prevProjects.find((p) => p.id === call.projectId);
+          projectUpdates[call.projectId] = {
+            totalCalls: existingProject?.totalCalls || 0,
+            totalAmount: existingProject?.totalAmount || 0,
+          };
+        }
+        projectUpdates[call.projectId].totalCalls += 1;
+        projectUpdates[call.projectId].totalAmount += call.orderAmount;
+      });
 
-    Object.entries(projectUpdates).forEach(([projectId, updates]) => {
-      updateProject(projectId, updates);
+      return prevProjects.map((project) => {
+        if (projectUpdates[project.id]) {
+          return {
+            ...project,
+            totalCalls: projectUpdates[project.id].totalCalls,
+            totalAmount: projectUpdates[project.id].totalAmount,
+          };
+        }
+        return project;
+      });
     });
   };
 
