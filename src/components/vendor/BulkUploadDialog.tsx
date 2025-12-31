@@ -7,7 +7,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -198,15 +197,15 @@ const BulkUploadDialog = ({ open, onOpenChange }: BulkUploadDialogProps) => {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
               <Upload className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <DialogTitle>Bulk Call Upload</DialogTitle>
-              <DialogDescription>
+              <DialogTitle className="text-lg font-semibold">Bulk CSV Upload</DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground">
                 Upload a CSV file to add multiple calls at once
               </DialogDescription>
             </div>
@@ -214,10 +213,11 @@ const BulkUploadDialog = ({ open, onOpenChange }: BulkUploadDialogProps) => {
         </DialogHeader>
 
         <div className="space-y-4 mt-4">
+          {/* Project Selection */}
           <div className="space-y-2">
-            <Label>Select Project *</Label>
+            <Label className="text-sm font-medium">Select Project *</Label>
             <Select value={selectedProject} onValueChange={setSelectedProject}>
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Choose a project" />
               </SelectTrigger>
               <SelectContent>
@@ -235,8 +235,9 @@ const BulkUploadDialog = ({ open, onOpenChange }: BulkUploadDialogProps) => {
             )}
           </div>
 
+          {/* CSV Upload Area */}
           <div className="space-y-2">
-            <Label>Upload CSV File *</Label>
+            <Label className="text-sm font-medium">Upload CSV File *</Label>
             <div
               className={cn(
                 'border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors',
@@ -252,7 +253,7 @@ const BulkUploadDialog = ({ open, onOpenChange }: BulkUploadDialogProps) => {
                 onChange={handleFileChange}
               />
               {file ? (
-                <div className="flex items-center justify-center gap-2">
+                <div className="flex items-center justify-center gap-3">
                   <FileSpreadsheet className="h-8 w-8 text-primary" />
                   <div className="text-left">
                     <p className="font-medium text-foreground">{file.name}</p>
@@ -275,15 +276,21 @@ const BulkUploadDialog = ({ open, onOpenChange }: BulkUploadDialogProps) => {
             </div>
           </div>
 
-          <div className="bg-muted/50 rounded-lg p-3 text-sm">
-            <p className="font-medium text-foreground mb-1">Required CSV Columns:</p>
-            <p className="text-muted-foreground text-xs">
-              customerName, customerPhone, customerAddress, pincode, orderAmount
-            </p>
+          {/* Required Columns Info */}
+          <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+            <p className="font-medium text-foreground text-sm">Required CSV Columns:</p>
+            <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+              <div>• Customer Name</div>
+              <div>• Customer Phone</div>
+              <div>• Customer Address</div>
+              <div>• Pincode (6-digit)</div>
+              <div>• Order Amount (₹)</div>
+            </div>
           </div>
 
+          {/* Validation Errors */}
           {validationErrors.length > 0 && (
-            <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3">
+            <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4">
               <div className="flex items-center gap-2 mb-2">
                 <AlertCircle className="h-4 w-4 text-destructive" />
                 <p className="font-medium text-destructive text-sm">Validation Errors</p>
@@ -299,29 +306,33 @@ const BulkUploadDialog = ({ open, onOpenChange }: BulkUploadDialogProps) => {
             </div>
           )}
 
+          {/* Success Message */}
           {parsedData.length > 0 && validationErrors.length === 0 && (
-            <div className="bg-success/10 border border-success/30 rounded-lg p-3">
+            <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
               <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-success" />
-                <p className="font-medium text-success text-sm">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <p className="font-medium text-green-600 text-sm">
                   {parsedData.length} call(s) ready to upload
                 </p>
               </div>
             </div>
           )}
 
+          {/* Problem Description */}
           <div className="space-y-2">
-            <Label htmlFor="problemDescription">Problem Description</Label>
+            <Label htmlFor="problemDescription" className="text-sm font-medium">Problem Description</Label>
             <Textarea
               id="problemDescription"
               placeholder="Describe any issues or problems you're facing..."
               value={problemDescription}
               onChange={(e) => setProblemDescription(e.target.value)}
               rows={3}
+              className="resize-none"
             />
           </div>
 
-          <div className="flex gap-3 pt-4">
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-4 border-t">
             <Button type="button" variant="outline" className="flex-1" onClick={handleClose}>
               Cancel
             </Button>
