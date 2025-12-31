@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/select';
 import { useVendor, CallData } from '@/contexts/VendorContext';
 import { toast } from '@/hooks/use-toast';
-import { FileSpreadsheet } from 'lucide-react';
+import { FileText } from 'lucide-react';
 
 interface SingleCallDialogProps {
   open: boolean;
@@ -130,15 +130,15 @@ const SingleCallDialog = ({ open, onOpenChange }: SingleCallDialogProps) => {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <FileSpreadsheet className="h-5 w-5 text-primary" />
+              <FileText className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <DialogTitle>Single Call Upload</DialogTitle>
-              <DialogDescription>
+              <DialogTitle className="text-lg font-semibold">Single Call Upload</DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground">
                 Add a single call entry manually
               </DialogDescription>
             </div>
@@ -146,10 +146,11 @@ const SingleCallDialog = ({ open, onOpenChange }: SingleCallDialogProps) => {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+          {/* Project Selection */}
           <div className="space-y-2">
-            <Label>Select Project *</Label>
+            <Label className="text-sm font-medium">Select Project *</Label>
             <Select value={selectedProject} onValueChange={setSelectedProject}>
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Choose a project" />
               </SelectTrigger>
               <SelectContent>
@@ -167,75 +168,84 @@ const SingleCallDialog = ({ open, onOpenChange }: SingleCallDialogProps) => {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* Customer Details Section */}
+          <div className="bg-muted/50 rounded-lg p-4 space-y-4">
+            <p className="font-medium text-foreground text-sm">Customer Details</p>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="customerName" className="text-sm font-medium">Customer Name *</Label>
+                <Input
+                  id="customerName"
+                  placeholder="Enter customer name"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customerPhone" className="text-sm font-medium">Customer Phone *</Label>
+                <Input
+                  id="customerPhone"
+                  placeholder="Enter phone number"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <Label htmlFor="customerName">Customer Name *</Label>
-              <Input
-                id="customerName"
-                placeholder="Enter customer name"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
+              <Label htmlFor="customerAddress" className="text-sm font-medium">Customer Address</Label>
+              <Textarea
+                id="customerAddress"
+                placeholder="Enter full address"
+                value={customerAddress}
+                onChange={(e) => setCustomerAddress(e.target.value)}
+                rows={2}
+                className="resize-none"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="customerPhone">Customer Phone *</Label>
-              <Input
-                id="customerPhone"
-                placeholder="Enter phone number"
-                value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-              />
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="pincode" className="text-sm font-medium">Pincode (6-digit) *</Label>
+                <Input
+                  id="pincode"
+                  placeholder="Enter pincode"
+                  value={pincode}
+                  onChange={(e) => setPincode(e.target.value)}
+                  maxLength={6}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="orderAmount" className="text-sm font-medium">Order Amount (₹) *</Label>
+                <Input
+                  id="orderAmount"
+                  type="number"
+                  placeholder="Enter amount"
+                  value={orderAmount}
+                  onChange={(e) => setOrderAmount(e.target.value)}
+                  min="0"
+                  step="0.01"
+                />
+              </div>
             </div>
           </div>
 
+          {/* Problem Description */}
           <div className="space-y-2">
-            <Label htmlFor="customerAddress">Customer Address</Label>
-            <Textarea
-              id="customerAddress"
-              placeholder="Enter full address"
-              value={customerAddress}
-              onChange={(e) => setCustomerAddress(e.target.value)}
-              rows={2}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="pincode">Pincode *</Label>
-              <Input
-                id="pincode"
-                placeholder="6-digit pincode"
-                value={pincode}
-                onChange={(e) => setPincode(e.target.value)}
-                maxLength={6}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="orderAmount">Order Amount (₹) *</Label>
-              <Input
-                id="orderAmount"
-                type="number"
-                placeholder="Enter amount"
-                value={orderAmount}
-                onChange={(e) => setOrderAmount(e.target.value)}
-                min="0"
-                step="0.01"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="problemDescription">Problem Description</Label>
+            <Label htmlFor="problemDescription" className="text-sm font-medium">Problem Description</Label>
             <Textarea
               id="problemDescription"
               placeholder="Describe any issues or problems you're facing..."
               value={problemDescription}
               onChange={(e) => setProblemDescription(e.target.value)}
               rows={3}
+              className="resize-none"
             />
           </div>
 
-          <div className="flex gap-3 pt-4">
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-4 border-t">
             <Button type="button" variant="outline" className="flex-1" onClick={handleClose}>
               Cancel
             </Button>
