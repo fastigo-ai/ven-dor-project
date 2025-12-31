@@ -23,8 +23,17 @@ import { useVendor } from '@/contexts/VendorContext';
 import { toast } from '@/hooks/use-toast';
 import { FolderPlus } from 'lucide-react';
 
+const supportTypes = [
+  'Breakfix',
+  'PM Activity',
+  'On Call Support',
+  'Server Call',
+  'Desktop Installation',
+] as const;
+
 const projectSchema = z.object({
   name: z.string().min(3, 'Project name must be at least 3 characters'),
+  supportType: z.enum(supportTypes, { required_error: 'Please select a support type' }),
   status: z.enum(['active', 'on-hold']),
 });
 
@@ -45,6 +54,7 @@ const CreateProjectDialog = ({ open, onOpenChange }: CreateProjectDialogProps) =
     setValue,
     reset,
     formState: { errors },
+    watch,
   } = useForm<ProjectFormData>({
     resolver: zodResolver(projectSchema),
     defaultValues: {
@@ -60,6 +70,7 @@ const CreateProjectDialog = ({ open, onOpenChange }: CreateProjectDialogProps) =
       addProject({
         vendorId: currentVendor.id,
         name: data.name,
+        supportType: data.supportType,
         status: data.status,
       });
 
@@ -112,6 +123,27 @@ const CreateProjectDialog = ({ open, onOpenChange }: CreateProjectDialogProps) =
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="supportType">Support Type *</Label>
+            <Select
+              onValueChange={(value: typeof supportTypes[number]) => setValue('supportType', value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select support type" />
+              </SelectTrigger>
+              <SelectContent className="bg-background border z-50">
+                {supportTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.supportType && (
+              <p className="text-sm text-destructive">{errors.supportType.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="status">Initial Status</Label>
             <Select
               defaultValue="active"
@@ -120,7 +152,7 @@ const CreateProjectDialog = ({ open, onOpenChange }: CreateProjectDialogProps) =
               <SelectTrigger>
                 <SelectValue placeholder="Select status" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-background border z-50">
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="on-hold">On Hold</SelectItem>
               </SelectContent>
