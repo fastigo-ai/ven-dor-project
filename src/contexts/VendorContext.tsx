@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
+export type SupportType = 'Breakfix' | 'PM Activity' | 'On Call Support' | 'Server Call' | 'Desktop Installation';
+
 export interface CallData {
   id: string;
   projectId: string;
@@ -16,6 +18,7 @@ export interface ProjectData {
   id: string;
   vendorId: string;
   name: string;
+  supportType: SupportType;
   createdAt: Date;
   status: 'active' | 'completed' | 'on-hold';
   totalCalls: number;
@@ -90,6 +93,7 @@ const initialProjects: ProjectData[] = [
     id: 'proj-1',
     vendorId: '2',
     name: 'Mumbai Metro Deliveries',
+    supportType: 'Breakfix',
     createdAt: new Date('2024-01-20'),
     status: 'active',
     totalCalls: 45,
@@ -100,6 +104,7 @@ const initialProjects: ProjectData[] = [
     id: 'proj-2',
     vendorId: '2',
     name: 'Bangalore Express',
+    supportType: 'On Call Support',
     createdAt: new Date('2024-01-25'),
     status: 'active',
     totalCalls: 28,
@@ -144,42 +149,56 @@ const initialCalls: CallData[] = [
   },
 ];
 
+const initialVendors: VendorData[] = [
+  {
+    id: '1',
+    email: 'vendor@example.com',
+    companyName: 'Example Logistics',
+    gstNumber: 'GST123456789',
+    registrationNumber: 'REG001',
+    businessAddress: '123 Business Street, Mumbai',
+    contactPersonName: 'John Doe',
+    phoneNumber: '+91 98765 43210',
+    websiteUrl: 'https://example.com',
+    status: 'pending',
+    createdAt: new Date('2024-01-15'),
+  },
+  {
+    id: '2',
+    email: 'logistics@fastship.in',
+    companyName: 'FastShip Logistics Pvt Ltd',
+    gstNumber: '27AABCU9603R1ZM',
+    registrationNumber: 'REG002',
+    businessAddress: '456 Industrial Area, Andheri East, Mumbai - 400093',
+    contactPersonName: 'Rajesh Kumar',
+    phoneNumber: '+91 98765 12345',
+    websiteUrl: 'https://fastshiplogistics.in',
+    status: 'approved',
+    createdAt: new Date('2024-01-10'),
+  },
+  {
+    id: '3',
+    email: 'contact@speedycourier.com',
+    companyName: 'Speedy Courier Services',
+    gstNumber: '29AABCS1234R1ZP',
+    registrationNumber: 'REG003',
+    businessAddress: '789 Delivery Hub, Koramangala, Bangalore - 560034',
+    contactPersonName: 'Priya Sharma',
+    phoneNumber: '+91 98765 67890',
+    websiteUrl: 'https://speedycourier.com',
+    status: 'pending',
+    createdAt: new Date('2024-01-18'),
+  },
+];
+
 export const VendorProvider = ({ children }: { children: ReactNode }) => {
   const [currentEmail, setCurrentEmail] = useState('');
   const [isVerified, setIsVerified] = useState(false);
+  const [vendors, setVendors] = useState<VendorData[]>(initialVendors);
+  const [currentVendor, setCurrentVendor] = useState<VendorData | null>(null);
   const [vendorPasswords, setVendorPasswords] = useState<Record<string, string>>({
-    'demo@company.com': 'Demo@123',
     'logistics@fastship.in': 'FastShip@123',
   });
-  const [vendors, setVendors] = useState<VendorData[]>([
-    {
-      id: '1',
-      email: 'demo@company.com',
-      companyName: 'TechFlow Solutions',
-      gstNumber: '27AABCU9603R1ZM',
-      registrationNumber: 'U72200MH2020PTC123456',
-      businessAddress: '123 Tech Park, Whitefield, Bangalore 560066',
-      contactPersonName: 'Rajesh Kumar',
-      phoneNumber: '+91 98765 43210',
-      websiteUrl: 'https://techflow.com',
-      status: 'pending',
-      createdAt: new Date('2024-01-15'),
-    },
-    {
-      id: '2',
-      email: 'logistics@fastship.in',
-      companyName: 'FastShip Logistics',
-      gstNumber: '29AABCF1234R1ZP',
-      registrationNumber: 'U60300KA2019PTC654321',
-      businessAddress: '45 Industrial Estate, Electronic City, Bangalore 560100',
-      contactPersonName: 'Priya Sharma',
-      phoneNumber: '+91 87654 32109',
-      websiteUrl: 'https://fastship.in',
-      status: 'approved',
-      createdAt: new Date('2024-01-10'),
-    },
-  ]);
-  const [currentVendor, setCurrentVendor] = useState<VendorData | null>(null);
   const [projects, setProjects] = useState<ProjectData[]>(initialProjects);
   const [calls, setCalls] = useState<CallData[]>(initialCalls);
   const [rateCards, setRateCards] = useState<RateCard[]>(initialRateCards);
@@ -187,12 +206,11 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
   const addVendor = (vendorData: Omit<VendorData, 'id' | 'createdAt' | 'status'>) => {
     const newVendor: VendorData = {
       ...vendorData,
-      id: Date.now().toString(),
-      status: 'pending',
+      id: String(vendors.length + 1),
       createdAt: new Date(),
+      status: 'pending',
     };
     setVendors((prev) => [...prev, newVendor]);
-    setCurrentVendor(newVendor);
   };
 
   const updateVendorStatus = (id: string, status: 'pending' | 'approved' | 'rejected') => {
@@ -204,11 +222,14 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const setVendorPassword = (email: string, password: string) => {
-    setVendorPasswords((prev) => ({ ...prev, [email.toLowerCase()]: password }));
+    setVendorPasswords((prev) => ({
+      ...prev,
+      [email]: password,
+    }));
   };
 
   const getVendorPassword = (email: string) => {
-    return vendorPasswords[email.toLowerCase()];
+    return vendorPasswords[email];
   };
 
   const addProject = (projectData: Omit<ProjectData, 'id' | 'createdAt' | 'totalCalls' | 'completedCalls' | 'totalAmount'>) => {
@@ -233,7 +254,7 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addCalls = (newCalls: Omit<CallData, 'id' | 'createdAt' | 'status'>[]) => {
-    const callsWithIds = newCalls.map((call, index) => ({
+    const callsWithIds: CallData[] = newCalls.map((call, index) => ({
       ...call,
       id: `call-${Date.now()}-${index}`,
       createdAt: new Date(),
