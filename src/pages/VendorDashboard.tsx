@@ -29,7 +29,8 @@ import StatusBadge from '@/components/StatusBadge';
 import ProjectList from '@/components/vendor/ProjectList';
 import RateCardView from '@/components/vendor/RateCardView';
 import CreateProjectDialog from '@/components/vendor/CreateProjectDialog';
-import CSVUploadDialog from '@/components/vendor/CSVUploadDialog';
+import BulkUploadDialog from '@/components/vendor/BulkUploadDialog';
+import SingleCallDialog from '@/components/vendor/SingleCallDialog';
 import { useVendor, ProjectData } from '@/contexts/VendorContext';
 import { toast } from '@/hooks/use-toast';
 
@@ -37,8 +38,8 @@ const VendorDashboard = () => {
   const navigate = useNavigate();
   const { currentVendor, setCurrentVendor, projects, calls, rateCards } = useVendor();
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
-  const [csvUploadOpen, setCSVUploadOpen] = useState(false);
-  const [uploadType, setUploadType] = useState<'bulk' | 'single'>('bulk');
+  const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
+  const [singleCallOpen, setSingleCallOpen] = useState(false);
 
   useEffect(() => {
     if (!currentVendor || currentVendor.status !== 'approved') {
@@ -72,13 +73,11 @@ const VendorDashboard = () => {
   };
 
   const handleBulkUpload = () => {
-    setUploadType('bulk');
-    setCSVUploadOpen(true);
+    setBulkUploadOpen(true);
   };
 
   const handleSingleUpload = () => {
-    setUploadType('single');
-    setCSVUploadOpen(true);
+    setSingleCallOpen(true);
   };
 
   const stats = [
@@ -297,10 +296,13 @@ const VendorDashboard = () => {
         open={createProjectOpen} 
         onOpenChange={setCreateProjectOpen} 
       />
-      <CSVUploadDialog 
-        open={csvUploadOpen} 
-        onOpenChange={setCSVUploadOpen}
-        uploadType={uploadType}
+      <BulkUploadDialog 
+        open={bulkUploadOpen} 
+        onOpenChange={setBulkUploadOpen}
+      />
+      <SingleCallDialog 
+        open={singleCallOpen} 
+        onOpenChange={setSingleCallOpen}
       />
     </div>
   );
