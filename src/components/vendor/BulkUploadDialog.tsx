@@ -158,7 +158,32 @@ const BulkUploadDialog = ({ open, onOpenChange }: BulkUploadDialogProps) => {
   };
 
   const handleUpload = async () => {
-    if (!selectedProject || parsedData.length === 0) return;
+    if (!selectedProject) {
+      toast({
+        title: 'Error',
+        description: 'Please select a project.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (parsedData.length === 0) {
+      toast({
+        title: 'Error',
+        description: 'Please upload a valid CSV file.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!problemDescription.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please provide a problem description.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setIsUploading(true);
     try {
@@ -194,6 +219,8 @@ const BulkUploadDialog = ({ open, onOpenChange }: BulkUploadDialogProps) => {
     setProblemDescription('');
     onOpenChange(false);
   };
+
+  const isFormValid = selectedProject && parsedData.length > 0 && problemDescription.trim() && validationErrors.length === 0;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -269,7 +296,7 @@ const BulkUploadDialog = ({ open, onOpenChange }: BulkUploadDialogProps) => {
                     Click to upload or drag and drop
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    CSV files only
+                    CSV files only (multiple entries)
                   </p>
                 </div>
               )}
@@ -320,10 +347,10 @@ const BulkUploadDialog = ({ open, onOpenChange }: BulkUploadDialogProps) => {
 
           {/* Problem Description */}
           <div className="space-y-2">
-            <Label htmlFor="problemDescription" className="text-sm font-medium">Problem Description</Label>
+            <Label htmlFor="problemDescription" className="text-sm font-medium">Problem Description *</Label>
             <Textarea
               id="problemDescription"
-              placeholder="Describe any issues or problems you're facing..."
+              placeholder="Describe any issues or problems you are facing..."
               value={problemDescription}
               onChange={(e) => setProblemDescription(e.target.value)}
               rows={3}
@@ -338,7 +365,7 @@ const BulkUploadDialog = ({ open, onOpenChange }: BulkUploadDialogProps) => {
             </Button>
             <Button
               className="flex-1"
-              disabled={!selectedProject || parsedData.length === 0 || isUploading}
+              disabled={!isFormValid || isUploading}
               onClick={handleUpload}
             >
               {isUploading ? 'Uploading...' : `Upload ${parsedData.length} Call(s)`}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -7,9 +7,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -17,31 +15,148 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { useVendor, CallData } from '@/contexts/VendorContext';
 import { toast } from '@/hooks/use-toast';
-import { FileText } from 'lucide-react';
+import { Upload, FileSpreadsheet, AlertCircle, CheckCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface SingleCallDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
+interface ParsedCall {
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+  pincode: string;
+  orderAmount: number;
+}
+
+const requiredColumns = ['customerName', 'customerPhone', 'customerAddress', 'pincode', 'orderAmount'];
+
 const SingleCallDialog = ({ open, onOpenChange }: SingleCallDialogProps) => {
   const { currentVendor, projects, addCalls } = useVendor();
   const [selectedProject, setSelectedProject] = useState<string>('');
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [customerAddress, setCustomerAddress] = useState('');
-  const [pincode, setPincode] = useState('');
-  const [orderAmount, setOrderAmount] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [parsedData, setParsedData] = useState<ParsedCall[]>([]);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const [problemDescription, setProblemDescription] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const vendorProjects = projects.filter((p) => p.vendorId === currentVendor?.id);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const parseCSV = (text: string): { data: ParsedCall[]; errors: string[] } => {
+    const lines = text.trim().split('\n');
+    const errors: string[] = [];
+    const data: ParsedCall[] = [];
 
+    if (lines.length < 2) {
+      errors.push('CSV must contain at least a header row and one data row');
+      return { data, errors };
+    }
+
+    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+    
+    const headerMap: Record<string, string> = {
+      'customer name': 'customername',
+      'customer_name': 'customername',
+      'name': 'customername',
+      'customer phone': 'customerphone',
+      'customer_phone': 'customerphone',
+      'phone': 'customerphone',
+      'mobile': 'customerphone',
+      'customer address': 'customeraddress',
+      'customer_address': 'customeraddress',
+      'address': 'customeraddress',
+      'pin code': 'pincode',
+      'pin_code': 'pincode',
+      'zip': 'pincode',
+      'order amount': 'orderamount',
+      'order_amount': 'orderamount',
+      'amount': 'orderamount',
+    };
+
+    const normalizedHeaders = headers.map((h) => headerMap[h] || h.replace(/[^a-z]/g, ''));
+
+    const missingColumns = requiredColumns.filter(
+      (col) => !normalizedHeaders.includes(col.toLowerCase())
+    );
+
+    if (missingColumns.length > 0) {
+      errors.push(`Missing required columns: ${missingColumns.join(', ')}`);
+      return { data, errors };
+    }
+
+    // For single call, only take the first data row
+    const values = lines[1].split(',').map((v) => v.trim());
+    
+    if (values.length !== headers.length) {
+      errors.push('Row 2: Column count mismatch');
+      return { data, errors };
+    }
+
+    const row: Record<string, string> = {};
+    normalizedHeaders.forEach((header, index) => {
+      row[header] = values[index];
+    });
+
+    if (!row.customername) {
+      errors.push('Customer name is required');
+      return { data, errors };
+    }
+    if (!row.customerphone) {
+      errors.push('Customer phone is required');
+      return { data, errors };
+    }
+    if (!row.pincode || !/^\d{6}$/.test(row.pincode)) {
+      errors.push('Valid 6-digit pincode is required');
+      return { data, errors };
+    }
+    if (!row.orderamount || isNaN(Number(row.orderamount))) {
+      errors.push('Valid order amount is required');
+      return { data, errors };
+    }
+
+    data.push({
+      customerName: row.customername,
+      customerPhone: row.customerphone,
+      customerAddress: row.customeraddress || '',
+      pincode: row.pincode,
+      orderAmount: Number(row.orderamount),
+    });
+
+    return { data, errors };
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+
+    if (!selectedFile.name.endsWith('.csv')) {
+      toast({
+        title: 'Invalid File',
+        description: 'Please upload a CSV file only.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setFile(selectedFile);
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const { data, errors } = parseCSV(text);
+      setParsedData(data);
+      setValidationErrors(errors);
+    };
+    reader.readAsText(selectedFile);
+  };
+
+  const handleUpload = async () => {
     if (!selectedProject) {
       toast({
         title: 'Error',
@@ -51,82 +166,60 @@ const SingleCallDialog = ({ open, onOpenChange }: SingleCallDialogProps) => {
       return;
     }
 
-    if (!customerName.trim()) {
+    if (parsedData.length === 0) {
       toast({
         title: 'Error',
-        description: 'Customer name is required.',
+        description: 'Please upload a valid CSV file.',
         variant: 'destructive',
       });
       return;
     }
 
-    if (!customerPhone.trim()) {
+    if (!problemDescription.trim()) {
       toast({
         title: 'Error',
-        description: 'Customer phone is required.',
+        description: 'Please provide a problem description.',
         variant: 'destructive',
       });
       return;
     }
 
-    if (!pincode.trim() || !/^\d{6}$/.test(pincode)) {
-      toast({
-        title: 'Error',
-        description: 'Please enter a valid 6-digit pincode.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (!orderAmount || isNaN(Number(orderAmount)) || Number(orderAmount) <= 0) {
-      toast({
-        title: 'Error',
-        description: 'Please enter a valid order amount.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
+    setIsUploading(true);
     try {
-      const callToAdd: Omit<CallData, 'id' | 'createdAt' | 'status'> = {
+      const callsToAdd: Omit<CallData, 'id' | 'createdAt' | 'status'>[] = parsedData.map((call) => ({
+        ...call,
         projectId: selectedProject,
-        customerName: customerName.trim(),
-        customerPhone: customerPhone.trim(),
-        customerAddress: customerAddress.trim(),
-        pincode: pincode.trim(),
-        orderAmount: Number(orderAmount),
-      };
+      }));
 
-      addCalls([callToAdd]);
+      addCalls(callsToAdd);
 
       toast({
-        title: 'Call Added',
-        description: 'Single call has been added to the project successfully.',
+        title: 'Call Added Successfully',
+        description: 'Single call has been added to the project.',
       });
 
       handleClose();
     } catch (error) {
       toast({
-        title: 'Error',
+        title: 'Upload Failed',
         description: 'Failed to add call. Please try again.',
         variant: 'destructive',
       });
     } finally {
-      setIsSubmitting(false);
+      setIsUploading(false);
     }
   };
 
   const handleClose = () => {
+    setFile(null);
+    setParsedData([]);
+    setValidationErrors([]);
     setSelectedProject('');
-    setCustomerName('');
-    setCustomerPhone('');
-    setCustomerAddress('');
-    setPincode('');
-    setOrderAmount('');
     setProblemDescription('');
     onOpenChange(false);
   };
+
+  const isFormValid = selectedProject && parsedData.length > 0 && problemDescription.trim() && validationErrors.length === 0;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -134,18 +227,18 @@ const SingleCallDialog = ({ open, onOpenChange }: SingleCallDialogProps) => {
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <FileText className="h-5 w-5 text-primary" />
+              <Upload className="h-5 w-5 text-primary" />
             </div>
             <div>
               <DialogTitle className="text-lg font-semibold">Single Call Upload</DialogTitle>
               <DialogDescription className="text-sm text-muted-foreground">
-                Add a single call entry manually
+                Upload a CSV file with a single call entry
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+        <div className="space-y-4 mt-4">
           {/* Project Selection */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Select Project *</Label>
@@ -168,75 +261,92 @@ const SingleCallDialog = ({ open, onOpenChange }: SingleCallDialogProps) => {
             )}
           </div>
 
-          {/* Customer Details Section */}
-          <div className="bg-muted/50 rounded-lg p-4 space-y-4">
-            <p className="font-medium text-foreground text-sm">Customer Details</p>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="customerName" className="text-sm font-medium">Customer Name *</Label>
-                <Input
-                  id="customerName"
-                  placeholder="Enter customer name"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="customerPhone" className="text-sm font-medium">Customer Phone *</Label>
-                <Input
-                  id="customerPhone"
-                  placeholder="Enter phone number"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="customerAddress" className="text-sm font-medium">Customer Address</Label>
-              <Textarea
-                id="customerAddress"
-                placeholder="Enter full address"
-                value={customerAddress}
-                onChange={(e) => setCustomerAddress(e.target.value)}
-                rows={2}
-                className="resize-none"
+          {/* CSV Upload Area */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Upload CSV File *</Label>
+            <div
+              className={cn(
+                'border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors',
+                file ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+              )}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={handleFileChange}
               />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="pincode" className="text-sm font-medium">Pincode (6-digit) *</Label>
-                <Input
-                  id="pincode"
-                  placeholder="Enter pincode"
-                  value={pincode}
-                  onChange={(e) => setPincode(e.target.value)}
-                  maxLength={6}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="orderAmount" className="text-sm font-medium">Order Amount (₹) *</Label>
-                <Input
-                  id="orderAmount"
-                  type="number"
-                  placeholder="Enter amount"
-                  value={orderAmount}
-                  onChange={(e) => setOrderAmount(e.target.value)}
-                  min="0"
-                  step="0.01"
-                />
-              </div>
+              {file ? (
+                <div className="flex items-center justify-center gap-3">
+                  <FileSpreadsheet className="h-8 w-8 text-primary" />
+                  <div className="text-left">
+                    <p className="font-medium text-foreground">{file.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {parsedData.length} valid row(s) found
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    Click to upload or drag and drop
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    CSV files only (single entry)
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
+          {/* Required Columns Info */}
+          <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+            <p className="font-medium text-foreground text-sm">Required CSV Columns:</p>
+            <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+              <div>• Customer Name</div>
+              <div>• Customer Phone</div>
+              <div>• Customer Address</div>
+              <div>• Pincode (6-digit)</div>
+              <div>• Order Amount (₹)</div>
+            </div>
+          </div>
+
+          {/* Validation Errors */}
+          {validationErrors.length > 0 && (
+            <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertCircle className="h-4 w-4 text-destructive" />
+                <p className="font-medium text-destructive text-sm">Validation Errors</p>
+              </div>
+              <ul className="text-xs text-destructive space-y-1 max-h-24 overflow-y-auto">
+                {validationErrors.map((error, index) => (
+                  <li key={index}>• {error}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Success Message */}
+          {parsedData.length > 0 && validationErrors.length === 0 && (
+            <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <p className="font-medium text-green-600 text-sm">
+                  {parsedData.length} call ready to upload
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Problem Description */}
           <div className="space-y-2">
-            <Label htmlFor="problemDescription" className="text-sm font-medium">Problem Description</Label>
+            <Label htmlFor="problemDescription" className="text-sm font-medium">Problem Description *</Label>
             <Textarea
               id="problemDescription"
-              placeholder="Describe any issues or problems you're facing..."
+              placeholder="Describe any issues or problems you are facing..."
               value={problemDescription}
               onChange={(e) => setProblemDescription(e.target.value)}
               rows={3}
@@ -250,14 +360,14 @@ const SingleCallDialog = ({ open, onOpenChange }: SingleCallDialogProps) => {
               Cancel
             </Button>
             <Button
-              type="submit"
               className="flex-1"
-              disabled={!selectedProject || isSubmitting}
+              disabled={!isFormValid || isUploading}
+              onClick={handleUpload}
             >
-              {isSubmitting ? 'Adding...' : 'Add Call'}
+              {isUploading ? 'Uploading...' : 'Upload Call'}
             </Button>
           </div>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );
