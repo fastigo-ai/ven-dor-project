@@ -34,6 +34,7 @@ const SingleCallDialog = ({ open, onOpenChange }: SingleCallDialogProps) => {
   const [customerAddress, setCustomerAddress] = useState('');
   const [pincode, setPincode] = useState('');
   const [orderAmount, setOrderAmount] = useState('');
+  const [problemDescription, setProblemDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const vendorProjects = projects.filter((p) => p.vendorId === currentVendor?.id);
@@ -123,6 +124,7 @@ const SingleCallDialog = ({ open, onOpenChange }: SingleCallDialogProps) => {
     setCustomerAddress('');
     setPincode('');
     setOrderAmount('');
+    setProblemDescription('');
     onOpenChange(false);
   };
 
@@ -220,6 +222,17 @@ const SingleCallDialog = ({ open, onOpenChange }: SingleCallDialogProps) => {
                 step="0.01"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="problemDescription">Problem Description</Label>
+            <Textarea
+              id="problemDescription"
+              placeholder="Describe any issues or problems you're facing..."
+              value={problemDescription}
+              onChange={(e) => setProblemDescription(e.target.value)}
+              rows={3}
+            />
           </div>
 
           <div className="flex gap-3 pt-4">

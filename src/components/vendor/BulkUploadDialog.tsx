@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { useVendor, CallData } from '@/contexts/VendorContext';
 import { toast } from '@/hooks/use-toast';
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle } from 'lucide-react';
@@ -42,6 +43,7 @@ const BulkUploadDialog = ({ open, onOpenChange }: BulkUploadDialogProps) => {
   const [parsedData, setParsedData] = useState<ParsedCall[]>([]);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [problemDescription, setProblemDescription] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const vendorProjects = projects.filter((p) => p.vendorId === currentVendor?.id);
@@ -189,6 +191,7 @@ const BulkUploadDialog = ({ open, onOpenChange }: BulkUploadDialogProps) => {
     setParsedData([]);
     setValidationErrors([]);
     setSelectedProject('');
+    setProblemDescription('');
     onOpenChange(false);
   };
 
@@ -305,6 +308,17 @@ const BulkUploadDialog = ({ open, onOpenChange }: BulkUploadDialogProps) => {
               </div>
             </div>
           )}
+
+          <div className="space-y-2">
+            <Label htmlFor="problemDescription">Problem Description</Label>
+            <Textarea
+              id="problemDescription"
+              placeholder="Describe any issues or problems you're facing..."
+              value={problemDescription}
+              onChange={(e) => setProblemDescription(e.target.value)}
+              rows={3}
+            />
+          </div>
 
           <div className="flex gap-3 pt-4">
             <Button type="button" variant="outline" className="flex-1" onClick={handleClose}>
