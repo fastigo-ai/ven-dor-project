@@ -38,6 +38,9 @@ import {
   IndianRupee,
   FileSpreadsheet,
   Edit2,
+  Ban,
+  FolderKanban,
+  PhoneCall,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
@@ -51,6 +54,8 @@ const AdminPanel = () => {
   const [selectedVendor, setSelectedVendor] = useState<VendorData | null>(null);
   const [editingRate, setEditingRate] = useState<RateCard | null>(null);
   const [rateForm, setRateForm] = useState({ baseRate: 0, perKmRate: 0, urgentMultiplier: 0 });
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [showRejectConfirm, setShowRejectConfirm] = useState(false);
 
   const allCalls = calls.map((call) => {
     const project = projects.find((p) => p.id === call.projectId);
@@ -87,14 +92,48 @@ const AdminPanel = () => {
     rejected: vendors.filter((v) => v.status === 'rejected').length,
   };
 
-  const handleStatusUpdate = (id: string, status: 'approved' | 'rejected') => {
+  const handleStatusUpdate = (id: string, status: 'approved' | 'rejected', reason?: string) => {
     updateVendorStatus(id, status);
     toast({
       title: `Vendor ${status === 'approved' ? 'Approved' : 'Rejected'}`,
-      description: `The vendor has been ${status}`,
+      description: status === 'rejected' && reason 
+        ? `Rejected: ${reason}` 
+        : `The vendor has been ${status}`,
+    });
+    setSelectedVendor(null);
+    setRejectionReason('');
+    setShowRejectConfirm(false);
+  };
+
+  const handleBlockVendor = (id: string) => {
+    updateVendorStatus(id, 'rejected');
+    toast({
+      title: 'Vendor Blocked',
+      description: 'The vendor has been blocked and cannot access the portal.',
+      variant: 'destructive',
     });
     setSelectedVendor(null);
   };
+
+  // Get vendor stats
+  const getVendorStats = (vendorId: string) => {
+    const vendorProjects = projects.filter(p => p.vendorId === vendorId);
+    const vendorCalls = calls.filter(c => vendorProjects.some(p => p.id === c.projectId));
+    const totalRevenue = vendorCalls.reduce((sum, call) => sum + call.orderAmount, 0);
+    return {
+      projectCount: vendorProjects.length,
+      callCount: vendorCalls.length,
+      revenue: totalRevenue,
+      activeProjects: vendorProjects.filter(p => p.status === 'active').length,
+    };
+  };
+
+  // All projects with vendor info
+  const allProjects = projects.map(project => {
+    const vendor = vendors.find(v => v.id === project.vendorId);
+    const projectCalls = calls.filter(c => c.projectId === project.id);
+    return { ...project, vendor, calls: projectCalls };
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -203,6 +242,7 @@ const AdminPanel = () => {
         <Tabs defaultValue="vendors" className="space-y-6">
           <TabsList>
             <TabsTrigger value="vendors">Vendors</TabsTrigger>
+            <TabsTrigger value="projects">Projects</TabsTrigger>
             <TabsTrigger value="calls">All Calls</TabsTrigger>
             <TabsTrigger value="rates">Rate Cards</TabsTrigger>
           </TabsList>
@@ -244,6 +284,47 @@ const AdminPanel = () => {
                   </div>
                 ))
               )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="projects">
+            <div className="bg-card rounded-xl border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead>Vendor</TableHead>
+                    <TableHead>Project Name</TableHead>
+                    <TableHead>Support Type</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="text-center">Total Calls</TableHead>
+                    <TableHead className="text-center">Completed</TableHead>
+                    <TableHead className="text-right">Total Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allProjects.map((project) => (
+                    <TableRow key={project.id}>
+                      <TableCell className="font-medium">{project.vendor?.companyName || 'N/A'}</TableCell>
+                      <TableCell>{project.name}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{project.supportType}</Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="outline" className={cn(
+                          project.status === 'active' && 'bg-success/10 text-success',
+                          project.status === 'on-hold' && 'bg-warning/10 text-warning',
+                          project.status === 'completed' && 'bg-muted text-muted-foreground'
+                        )}>
+                          {project.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">{project.totalCalls}</TableCell>
+                      <TableCell className="text-center">{project.completedCalls}</TableCell>
+                      <TableCell className="text-right font-mono">₹{project.totalAmount.toLocaleString()}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           </TabsContent>
 
@@ -343,8 +424,8 @@ const AdminPanel = () => {
       </Dialog>
 
       {/* Vendor Detail Dialog */}
-      <Dialog open={!!selectedVendor} onOpenChange={() => setSelectedVendor(null)}>
-        <DialogContent className="max-w-2xl">
+      <Dialog open={!!selectedVendor && !showRejectConfirm} onOpenChange={() => setSelectedVendor(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           {selectedVendor && (
             <>
               <DialogHeader>
@@ -362,6 +443,35 @@ const AdminPanel = () => {
                   </div>
                 </div>
               </DialogHeader>
+
+              {/* Vendor Stats */}
+              {(() => {
+                const vendorStats = getVendorStats(selectedVendor.id);
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                    <div className="p-3 bg-primary/5 rounded-lg text-center">
+                      <FolderKanban className="w-5 h-5 text-primary mx-auto mb-1" />
+                      <p className="text-lg font-bold text-foreground">{vendorStats.projectCount}</p>
+                      <p className="text-xs text-muted-foreground">Projects</p>
+                    </div>
+                    <div className="p-3 bg-success/5 rounded-lg text-center">
+                      <CheckCircle className="w-5 h-5 text-success mx-auto mb-1" />
+                      <p className="text-lg font-bold text-foreground">{vendorStats.activeProjects}</p>
+                      <p className="text-xs text-muted-foreground">Active</p>
+                    </div>
+                    <div className="p-3 bg-warning/5 rounded-lg text-center">
+                      <PhoneCall className="w-5 h-5 text-warning mx-auto mb-1" />
+                      <p className="text-lg font-bold text-foreground">{vendorStats.callCount}</p>
+                      <p className="text-xs text-muted-foreground">Calls</p>
+                    </div>
+                    <div className="p-3 bg-accent/10 rounded-lg text-center">
+                      <IndianRupee className="w-5 h-5 text-accent-foreground mx-auto mb-1" />
+                      <p className="text-lg font-bold text-foreground">₹{vendorStats.revenue.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground">Revenue</p>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="space-y-4 mt-4">
                 <div className="grid sm:grid-cols-2 gap-4">
@@ -453,15 +563,73 @@ const AdminPanel = () => {
                   <Button
                     variant="destructive"
                     className="flex-1"
-                    onClick={() => handleStatusUpdate(selectedVendor.id, 'rejected')}
+                    onClick={() => setShowRejectConfirm(true)}
                   >
                     <XCircle className="w-4 h-4 mr-2" />
                     Reject
                   </Button>
                 </div>
               )}
+
+              {selectedVendor.status === 'approved' && (
+                <div className="mt-6 pt-4 border-t border-border">
+                  <Button
+                    variant="outline"
+                    className="w-full text-destructive border-destructive/30 hover:bg-destructive/10"
+                    onClick={() => handleBlockVendor(selectedVendor.id)}
+                  >
+                    <Ban className="w-4 h-4 mr-2" />
+                    Block Vendor
+                  </Button>
+                </div>
+              )}
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Confirmation Dialog */}
+      <Dialog open={showRejectConfirm} onOpenChange={(open) => {
+        setShowRejectConfirm(open);
+        if (!open) setRejectionReason('');
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reject Vendor</DialogTitle>
+            <DialogDescription>
+              Provide a reason for rejecting {selectedVendor?.companyName}. This will be sent to the vendor.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label>Rejection Reason (Optional)</Label>
+              <textarea 
+                className="w-full min-h-[100px] p-3 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="Enter reason for rejection..."
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-3">
+              <Button 
+                variant="outline" 
+                className="flex-1" 
+                onClick={() => {
+                  setShowRejectConfirm(false);
+                  setRejectionReason('');
+                }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive" 
+                className="flex-1" 
+                onClick={() => selectedVendor && handleStatusUpdate(selectedVendor.id, 'rejected', rejectionReason)}
+              >
+                Confirm Reject
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
