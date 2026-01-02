@@ -407,59 +407,61 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-4 sm:p-6">
-        <DialogHeader>
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <FolderPlus className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-            </div>
-            <div className="min-w-0">
-              <DialogTitle className="text-lg sm:text-xl font-semibold">Create New Project</DialogTitle>
-              <DialogDescription className="text-xs sm:text-sm text-muted-foreground">
-                {steps[currentStep - 1].title} - Step {currentStep} of {steps.length}
-              </DialogDescription>
-            </div>
-          </div>
-        </DialogHeader>
-
-        {/* Step Indicator */}
-        <div className="flex items-center justify-between px-0 sm:px-2 py-3 sm:py-4 border-b overflow-x-auto">
-          {steps.map((step, index) => (
-            <div key={step.number} className="flex items-center">
-              <div className="flex flex-col items-center">
-                <div
-                  className={cn(
-                    'h-6 w-6 sm:h-8 sm:w-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium transition-colors',
-                    currentStep > step.number
-                      ? 'bg-primary text-primary-foreground'
-                      : currentStep === step.number
-                      ? 'bg-primary text-primary-foreground ring-2 sm:ring-4 ring-primary/20'
-                      : 'bg-muted text-muted-foreground'
-                  )}
-                >
-                  {currentStep > step.number ? (
-                    <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4" />
-                  ) : (
-                    step.number
-                  )}
-                </div>
-                <span className="text-[10px] sm:text-xs mt-1 text-muted-foreground hidden sm:block text-center max-w-[60px]">
-                  {step.title}
-                </span>
+      <DialogContent className="w-[95vw] max-w-4xl h-[85vh] max-h-[85vh] flex flex-col p-0">
+        <div className="p-4 sm:p-6 pb-0">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <FolderPlus className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
               </div>
-              {index < steps.length - 1 && (
-                <div
-                  className={cn(
-                    'h-0.5 w-4 sm:w-8 md:w-16 mx-1 sm:mx-2',
-                    currentStep > step.number ? 'bg-primary' : 'bg-muted'
-                  )}
-                />
-              )}
+              <div className="min-w-0">
+                <DialogTitle className="text-lg sm:text-xl font-semibold">Create New Project</DialogTitle>
+                <DialogDescription className="text-xs sm:text-sm text-muted-foreground">
+                  {steps[currentStep - 1].title} - Step {currentStep} of {steps.length}
+                </DialogDescription>
+              </div>
             </div>
-          ))}
+          </DialogHeader>
+
+          {/* Step Indicator */}
+          <div className="flex items-center justify-between px-0 sm:px-2 py-3 sm:py-4 border-b mt-4 overflow-x-auto">
+            {steps.map((step, index) => (
+              <div key={step.number} className="flex items-center">
+                <div className="flex flex-col items-center">
+                  <div
+                    className={cn(
+                      'h-6 w-6 sm:h-8 sm:w-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium transition-colors',
+                      currentStep > step.number
+                        ? 'bg-primary text-primary-foreground'
+                        : currentStep === step.number
+                        ? 'bg-primary text-primary-foreground ring-2 sm:ring-4 ring-primary/20'
+                        : 'bg-muted text-muted-foreground'
+                    )}
+                  >
+                    {currentStep > step.number ? (
+                      <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4" />
+                    ) : (
+                      step.number
+                    )}
+                  </div>
+                  <span className="text-[10px] sm:text-xs mt-1 text-muted-foreground hidden sm:block text-center max-w-[60px]">
+                    {step.title}
+                  </span>
+                </div>
+                {index < steps.length - 1 && (
+                  <div
+                    className={cn(
+                      'h-0.5 w-4 sm:w-8 md:w-16 mx-1 sm:mx-2',
+                      currentStep > step.number ? 'bg-primary' : 'bg-muted'
+                    )}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
         </div>
 
-        <ScrollArea className="flex-1 pr-4">
+        <ScrollArea className="flex-1 px-4 sm:px-6">
           {/* Step 1: Project Details */}
           {currentStep === 1 && (
             <form onSubmit={handleSubmit(handleStep1Submit)} className="space-y-4 py-4">
@@ -496,15 +498,6 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
                 )}
               </div>
 
-              <div className="flex gap-3 pt-4">
-                <Button type="button" variant="outline" className="flex-1" onClick={handleClose}>
-                  Cancel
-                </Button>
-                <Button type="submit" className="flex-1">
-                  Next
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
-              </div>
             </form>
           )}
 
@@ -643,17 +636,6 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
                   className="resize-none"
                 />
               </div>
-
-              <div className="flex gap-3 pt-4">
-                <Button type="button" variant="outline" className="flex-1" onClick={goBack}>
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back
-                </Button>
-                <Button className="flex-1" disabled={!isStep2Valid} onClick={handleStep2Submit}>
-                  Validate Addresses
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
-              </div>
             </div>
           )}
 
@@ -726,17 +708,6 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
                   </CardContent>
                 </Card>
               )}
-
-              <div className="flex gap-3 pt-4">
-                <Button type="button" variant="outline" className="flex-1" onClick={goBack}>
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back
-                </Button>
-                <Button className="flex-1" onClick={() => setCurrentStep(4)}>
-                  View Cost Summary
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
-              </div>
             </div>
           )}
 
@@ -821,17 +792,6 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
                   </div>
                 </CardContent>
               </Card>
-
-              <div className="flex gap-3 pt-4">
-                <Button type="button" variant="outline" className="flex-1" onClick={goBack}>
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back
-                </Button>
-                <Button className="flex-1" onClick={() => setCurrentStep(5)}>
-                  Proceed to Approval
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
-              </div>
             </div>
           )}
 
@@ -909,23 +869,75 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
                   </CardContent>
                 </Card>
               </div>
-
-              <div className="flex gap-3 pt-4">
-                <Button type="button" variant="outline" className="flex-1" onClick={goBack}>
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back
-                </Button>
-                <Button 
-                  className="flex-1" 
-                  disabled={!projectStatus || isSubmitting}
-                  onClick={handleFinalSubmit}
-                >
-                  {isSubmitting ? 'Submitting...' : 'Submit Project'}
-                </Button>
-              </div>
             </div>
           )}
         </ScrollArea>
+
+        {/* Sticky Footer with Action Buttons */}
+        <div className="p-4 sm:p-6 pt-4 border-t bg-background">
+          {currentStep === 1 && (
+            <div className="flex gap-3">
+              <Button type="button" variant="outline" className="flex-1" onClick={handleClose}>
+                Cancel
+              </Button>
+              <Button type="submit" form="step1-form" className="flex-1" onClick={handleSubmit(handleStep1Submit)}>
+                Next
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+          )}
+          {currentStep === 2 && (
+            <div className="flex gap-3">
+              <Button type="button" variant="outline" className="flex-1" onClick={goBack}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back
+              </Button>
+              <Button className="flex-1" disabled={!isStep2Valid} onClick={handleStep2Submit}>
+                Validate Addresses
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+          )}
+          {currentStep === 3 && (
+            <div className="flex gap-3">
+              <Button type="button" variant="outline" className="flex-1" onClick={goBack}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back
+              </Button>
+              <Button className="flex-1" onClick={() => setCurrentStep(4)}>
+                View Cost Summary
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+          )}
+          {currentStep === 4 && (
+            <div className="flex gap-3">
+              <Button type="button" variant="outline" className="flex-1" onClick={goBack}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back
+              </Button>
+              <Button className="flex-1" onClick={() => setCurrentStep(5)}>
+                Proceed to Approval
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+          )}
+          {currentStep === 5 && (
+            <div className="flex gap-3">
+              <Button type="button" variant="outline" className="flex-1" onClick={goBack}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back
+              </Button>
+              <Button 
+                className="flex-1" 
+                disabled={!projectStatus || isSubmitting}
+                onClick={handleFinalSubmit}
+              >
+                {isSubmitting ? 'Submitting...' : 'Submit Project'}
+              </Button>
+            </div>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
