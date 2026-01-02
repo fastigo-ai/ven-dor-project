@@ -66,6 +66,8 @@ interface VendorContextType {
   updateProject: (id: string, updates: Partial<ProjectData>) => void;
   calls: CallData[];
   addCalls: (calls: Omit<CallData, 'id' | 'createdAt' | 'status'>[]) => void;
+  addSingleCall: (call: Omit<CallData, 'id' | 'createdAt' | 'status'>) => void;
+  deleteCall: (callId: string) => void;
   rateCards: RateCard[];
   updateRateCard: (id: string, updates: Partial<RateCard>) => void;
 }
@@ -310,6 +312,51 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
+  const addSingleCall = (callData: Omit<CallData, 'id' | 'createdAt' | 'status'>) => {
+    const newCall: CallData = {
+      ...callData,
+      id: `call-${Date.now()}`,
+      createdAt: new Date(),
+      status: 'pending',
+    };
+    setCalls((prev) => [...prev, newCall]);
+
+    // Update project stats
+    setProjects((prevProjects) =>
+      prevProjects.map((project) => {
+        if (project.id === callData.projectId) {
+          return {
+            ...project,
+            totalCalls: project.totalCalls + 1,
+            totalAmount: project.totalAmount + callData.orderAmount,
+          };
+        }
+        return project;
+      })
+    );
+  };
+
+  const deleteCall = (callId: string) => {
+    const callToDelete = calls.find((c) => c.id === callId);
+    if (!callToDelete) return;
+
+    setCalls((prev) => prev.filter((c) => c.id !== callId));
+
+    // Update project stats
+    setProjects((prevProjects) =>
+      prevProjects.map((project) => {
+        if (project.id === callToDelete.projectId) {
+          return {
+            ...project,
+            totalCalls: Math.max(0, project.totalCalls - 1),
+            totalAmount: Math.max(0, project.totalAmount - callToDelete.orderAmount),
+          };
+        }
+        return project;
+      })
+    );
+  };
+
   return (
     <VendorContext.Provider
       value={{
@@ -329,6 +376,8 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
         updateProject,
         calls,
         addCalls,
+        addSingleCall,
+        deleteCall,
         rateCards,
         updateRateCard,
       }}
