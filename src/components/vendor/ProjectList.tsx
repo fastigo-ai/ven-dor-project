@@ -24,6 +24,7 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import ProjectDetailsDialog from './ProjectDetailsDialog';
+import EditProjectDialog from './EditProjectDialog';
 
 interface ProjectListProps {
   projects: ProjectData[];
@@ -41,6 +42,14 @@ const ProjectList = ({ projects, calls, onViewProject }: ProjectListProps) => {
   const { updateProject } = useVendor();
   const [selectedProject, setSelectedProject] = useState<ProjectData | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editProject, setEditProject] = useState<ProjectData | null>(null);
+
+  const handleEditProject = (project: ProjectData, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditProject(project);
+    setEditOpen(true);
+  };
 
   const handleViewDetails = (project: ProjectData, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -122,6 +131,10 @@ const ProjectList = ({ projects, calls, onViewProject }: ProjectListProps) => {
                       <Eye className="mr-2 h-4 w-4" />
                       View Details
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={(e) => handleEditProject(project, e)}>
+                      <Edit className="mr-2 h-4 w-4" />
+                      Edit Project
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     {project.status === 'on-hold' ? (
                       <DropdownMenuItem onClick={(e) => handleActivateProject(project, e)} className="text-success">
@@ -180,6 +193,12 @@ const ProjectList = ({ projects, calls, onViewProject }: ProjectListProps) => {
         onOpenChange={setDetailsOpen}
         project={selectedProject}
         calls={calls}
+      />
+
+      <EditProjectDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        project={editProject}
       />
     </>
   );
