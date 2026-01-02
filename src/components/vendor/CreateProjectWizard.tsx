@@ -153,12 +153,10 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
 
   const parseCSV = (text: string): { data: ParsedCall[]; errors: string[] } => {
     const lines = text.trim().split('\n');
-    const errors: string[] = [];
     const data: ParsedCall[] = [];
 
     if (lines.length < 2) {
-      errors.push('CSV must contain at least a header row and one data row');
-      return { data, errors };
+      return { data, errors: [] };
     }
 
     const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
@@ -184,55 +182,28 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
 
     const normalizedHeaders = headers.map((h) => headerMap[h] || h.replace(/[^a-z]/g, ''));
 
-    const missingColumns = requiredColumns.filter(
-      (col) => !normalizedHeaders.includes(col.toLowerCase())
-    );
-
-    if (missingColumns.length > 0) {
-      errors.push(`Missing required columns: ${missingColumns.join(', ')}`);
-      return { data, errors };
-    }
-
     for (let i = 1; i < lines.length; i++) {
       const values = lines[i].split(',').map((v) => v.trim());
       
-      if (values.length !== headers.length) {
-        errors.push(`Row ${i + 1}: Column count mismatch`);
+      if (values.length === 0 || (values.length === 1 && values[0] === '')) {
         continue;
       }
 
       const row: Record<string, string> = {};
       normalizedHeaders.forEach((header, index) => {
-        row[header] = values[index];
+        row[header] = values[index] || '';
       });
 
-      if (!row.customername) {
-        errors.push(`Row ${i + 1}: Customer name is required`);
-        continue;
-      }
-      if (!row.customerphone) {
-        errors.push(`Row ${i + 1}: Customer phone is required`);
-        continue;
-      }
-      if (!row.pincode || !/^\d{6}$/.test(row.pincode)) {
-        errors.push(`Row ${i + 1}: Valid 6-digit pincode is required`);
-        continue;
-      }
-      if (!row.orderamount || isNaN(Number(row.orderamount))) {
-        errors.push(`Row ${i + 1}: Valid order amount is required`);
-        continue;
-      }
-
       data.push({
-        customerName: row.customername,
-        customerPhone: row.customerphone,
+        customerName: row.customername || '',
+        customerPhone: row.customerphone || '',
         customerAddress: row.customeraddress || '',
-        pincode: row.pincode,
-        orderAmount: Number(row.orderamount),
+        pincode: row.pincode || '',
+        orderAmount: Number(row.orderamount) || 0,
       });
     }
 
-    return { data, errors };
+    return { data, errors: [] };
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -403,7 +374,7 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
     }
   };
 
-  const isStep2Valid = uploadType && parsedData.length > 0 && problemDescription.trim() && validationErrors.length === 0;
+  const isStep2Valid = uploadType && parsedData.length > 0 && problemDescription.trim();
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
