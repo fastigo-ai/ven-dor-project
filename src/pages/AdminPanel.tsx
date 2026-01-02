@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/table';
 import Logo from '@/components/Logo';
 import StatusBadge from '@/components/StatusBadge';
-import { useVendor, VendorData, RateCard } from '@/contexts/VendorContext';
+import { useVendor, VendorData, RateCard, ProjectData } from '@/contexts/VendorContext';
+import ProjectDetailsDialog from '@/components/vendor/ProjectDetailsDialog';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -56,6 +57,7 @@ const AdminPanel = () => {
   const [rateForm, setRateForm] = useState({ baseRate: 0, perKmRate: 0, urgentMultiplier: 0 });
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<ProjectData | null>(null);
 
   const allCalls = calls.map((call) => {
     const project = projects.find((p) => p.id === call.projectId);
@@ -303,7 +305,11 @@ const AdminPanel = () => {
                 </TableHeader>
                 <TableBody>
                   {allProjects.map((project) => (
-                    <TableRow key={project.id}>
+                    <TableRow 
+                      key={project.id} 
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => setSelectedProject(project)}
+                    >
                       <TableCell className="font-medium">{project.vendor?.companyName || 'N/A'}</TableCell>
                       <TableCell>{project.name}</TableCell>
                       <TableCell>
@@ -632,6 +638,14 @@ const AdminPanel = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Project Details Dialog */}
+      <ProjectDetailsDialog
+        open={!!selectedProject}
+        onOpenChange={(open) => !open && setSelectedProject(null)}
+        project={selectedProject}
+        calls={calls}
+      />
     </div>
   );
 };
