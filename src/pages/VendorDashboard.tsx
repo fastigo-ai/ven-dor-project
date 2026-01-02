@@ -251,7 +251,8 @@ const VendorDashboard = () => {
 
           <TabsContent value="projects">
             <ProjectList 
-              projects={vendorProjects} 
+              projects={vendorProjects}
+              calls={vendorCalls}
               onViewProject={handleViewProject}
             />
           </TabsContent>
