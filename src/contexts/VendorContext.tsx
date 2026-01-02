@@ -111,6 +111,17 @@ const initialProjects: ProjectData[] = [
     completedCalls: 15,
     totalAmount: 78000,
   },
+  {
+    id: 'proj-3',
+    vendorId: '2',
+    name: 'Delhi NCR Support',
+    supportType: 'PM Activity',
+    createdAt: new Date('2024-01-28'),
+    status: 'on-hold',
+    totalCalls: 12,
+    completedCalls: 0,
+    totalAmount: 35000,
+  },
 ];
 
 const initialCalls: CallData[] = [

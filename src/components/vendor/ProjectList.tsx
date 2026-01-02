@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ProjectData, CallData } from '@/contexts/VendorContext';
+import { ProjectData, CallData, useVendor } from '@/contexts/VendorContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,15 +9,20 @@ import {
   CheckCircle, 
   IndianRupee,
   MoreHorizontal,
-  Eye 
+  Eye,
+  Play,
+  Pause,
+  Edit,
 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/use-toast';
 import ProjectDetailsDialog from './ProjectDetailsDialog';
 
 interface ProjectListProps {
@@ -33,6 +38,7 @@ const statusColors = {
 };
 
 const ProjectList = ({ projects, calls, onViewProject }: ProjectListProps) => {
+  const { updateProject } = useVendor();
   const [selectedProject, setSelectedProject] = useState<ProjectData | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
@@ -40,6 +46,24 @@ const ProjectList = ({ projects, calls, onViewProject }: ProjectListProps) => {
     if (e) e.stopPropagation();
     setSelectedProject(project);
     setDetailsOpen(true);
+  };
+
+  const handleActivateProject = (project: ProjectData, e: React.MouseEvent) => {
+    e.stopPropagation();
+    updateProject(project.id, { status: 'active' });
+    toast({
+      title: 'Project Activated',
+      description: `"${project.name}" is now active.`,
+    });
+  };
+
+  const handleHoldProject = (project: ProjectData, e: React.MouseEvent) => {
+    e.stopPropagation();
+    updateProject(project.id, { status: 'on-hold' });
+    toast({
+      title: 'Project On Hold',
+      description: `"${project.name}" has been placed on hold.`,
+    });
   };
 
   if (projects.length === 0) {
@@ -62,14 +86,23 @@ const ProjectList = ({ projects, calls, onViewProject }: ProjectListProps) => {
         {projects.map((project) => (
           <Card 
             key={project.id} 
-            className="hover:shadow-md transition-shadow cursor-pointer"
+            className={cn(
+              "hover:shadow-md transition-shadow cursor-pointer",
+              project.status === 'on-hold' && "border-warning/30 bg-warning/5"
+            )}
             onClick={() => handleViewDetails(project)}
           >
             <CardContent className="p-5">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <FolderOpen className="h-5 w-5 text-primary" />
+                  <div className={cn(
+                    "h-10 w-10 rounded-lg flex items-center justify-center",
+                    project.status === 'on-hold' ? "bg-warning/10" : "bg-primary/10"
+                  )}>
+                    <FolderOpen className={cn(
+                      "h-5 w-5",
+                      project.status === 'on-hold' ? "text-warning" : "text-primary"
+                    )} />
                   </div>
                   <div>
                     <h3 className="font-semibold text-foreground">{project.name}</h3>
@@ -89,6 +122,18 @@ const ProjectList = ({ projects, calls, onViewProject }: ProjectListProps) => {
                       <Eye className="mr-2 h-4 w-4" />
                       View Details
                     </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {project.status === 'on-hold' ? (
+                      <DropdownMenuItem onClick={(e) => handleActivateProject(project, e)} className="text-success">
+                        <Play className="mr-2 h-4 w-4" />
+                        Activate Project
+                      </DropdownMenuItem>
+                    ) : project.status === 'active' ? (
+                      <DropdownMenuItem onClick={(e) => handleHoldProject(project, e)} className="text-warning">
+                        <Pause className="mr-2 h-4 w-4" />
+                        Put On Hold
+                      </DropdownMenuItem>
+                    ) : null}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -97,7 +142,7 @@ const ProjectList = ({ projects, calls, onViewProject }: ProjectListProps) => {
                 variant="outline" 
                 className={cn('capitalize mb-4', statusColors[project.status])}
               >
-                {project.status}
+                {project.status === 'on-hold' ? 'On Hold' : project.status}
               </Badge>
 
               <div className="grid grid-cols-3 gap-3 pt-3 border-t border-border">
