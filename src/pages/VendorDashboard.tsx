@@ -3,13 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import {
   Building2,
   FolderPlus,
-  Upload,
-  FileSpreadsheet,
   Bell,
   Settings,
   LogOut,
   User,
   BarChart3,
+  FileSpreadsheet,
   IndianRupee,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -28,9 +27,7 @@ import Logo from '@/components/Logo';
 import StatusBadge from '@/components/StatusBadge';
 import ProjectList from '@/components/vendor/ProjectList';
 import RateCardView from '@/components/vendor/RateCardView';
-import CreateProjectDialog from '@/components/vendor/CreateProjectDialog';
-import BulkUploadDialog from '@/components/vendor/BulkUploadDialog';
-import SingleCallDialog from '@/components/vendor/SingleCallDialog';
+import CreateProjectWizard from '@/components/vendor/CreateProjectWizard';
 import { useVendor, ProjectData } from '@/contexts/VendorContext';
 import { toast } from '@/hooks/use-toast';
 
@@ -38,8 +35,6 @@ const VendorDashboard = () => {
   const navigate = useNavigate();
   const { currentVendor, setCurrentVendor, projects, calls, rateCards } = useVendor();
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
-  const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
-  const [singleCallOpen, setSingleCallOpen] = useState(false);
 
   useEffect(() => {
     if (!currentVendor || currentVendor.status !== 'approved') {
@@ -70,14 +65,6 @@ const VendorDashboard = () => {
       title: project.name,
       description: `Total calls: ${project.totalCalls}, Amount: ₹${project.totalAmount.toLocaleString()}`,
     });
-  };
-
-  const handleBulkUpload = () => {
-    setBulkUploadOpen(true);
-  };
-
-  const handleSingleUpload = () => {
-    setSingleCallOpen(true);
   };
 
   const stats = [
@@ -242,30 +229,14 @@ const VendorDashboard = () => {
             <CardTitle className="text-lg">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="flex justify-center">
               <Button
                 variant="outline"
-                className="h-auto py-6 flex flex-col items-center gap-2 hover:bg-primary/5 hover:border-primary/30"
+                className="h-auto py-6 px-12 flex flex-col items-center gap-2 hover:bg-primary/5 hover:border-primary/30"
                 onClick={() => setCreateProjectOpen(true)}
               >
                 <FolderPlus className="h-6 w-6 text-primary" />
                 <span className="text-sm">Create Project</span>
-              </Button>
-              <Button
-                variant="outline"
-                className="h-auto py-6 flex flex-col items-center gap-2 hover:bg-primary/5 hover:border-primary/30"
-                onClick={handleBulkUpload}
-              >
-                <Upload className="h-6 w-6 text-primary" />
-                <span className="text-sm">Bulk CSV Upload</span>
-              </Button>
-              <Button
-                variant="outline"
-                className="h-auto py-6 flex flex-col items-center gap-2 hover:bg-primary/5 hover:border-primary/30"
-                onClick={handleSingleUpload}
-              >
-                <FileSpreadsheet className="h-6 w-6 text-primary" />
-                <span className="text-sm">Single Call Upload</span>
               </Button>
             </div>
           </CardContent>
@@ -292,17 +263,9 @@ const VendorDashboard = () => {
       </main>
 
       {/* Dialogs */}
-      <CreateProjectDialog 
+      <CreateProjectWizard 
         open={createProjectOpen} 
         onOpenChange={setCreateProjectOpen} 
-      />
-      <BulkUploadDialog 
-        open={bulkUploadOpen} 
-        onOpenChange={setBulkUploadOpen}
-      />
-      <SingleCallDialog 
-        open={singleCallOpen} 
-        onOpenChange={setSingleCallOpen}
       />
     </div>
   );
