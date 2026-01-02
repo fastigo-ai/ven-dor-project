@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -6,10 +7,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { ProjectData, CallData } from '@/contexts/VendorContext';
+import { ProjectData, CallData, useVendor } from '@/contexts/VendorContext';
 import {
   FolderOpen,
   Phone,
@@ -21,8 +22,22 @@ import {
   User,
   Calendar,
   Wrench,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/use-toast';
+import AddCallDialog from './AddCallDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface ProjectDetailsDialogProps {
   open: boolean;
@@ -57,12 +72,34 @@ const ProjectDetailsDialog = ({
   project,
   calls,
 }: ProjectDetailsDialogProps) => {
+  const { deleteCall } = useVendor();
+  const [addCallOpen, setAddCallOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [callToDelete, setCallToDelete] = useState<CallData | null>(null);
+
   if (!project) return null;
 
   const projectCalls = calls.filter((c) => c.projectId === project.id);
   const pendingCalls = projectCalls.filter((c) => c.status === 'pending').length;
   const assignedCalls = projectCalls.filter((c) => c.status === 'assigned').length;
   const completedCalls = projectCalls.filter((c) => c.status === 'completed').length;
+
+  const handleDeleteCall = (call: CallData) => {
+    setCallToDelete(call);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteCall = () => {
+    if (callToDelete) {
+      deleteCall(callToDelete.id);
+      toast({
+        title: 'Call Deleted',
+        description: `Call record for "${callToDelete.customerName}" has been deleted.`,
+      });
+      setCallToDelete(null);
+    }
+    setDeleteConfirmOpen(false);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -166,10 +203,20 @@ const ProjectDetailsDialog = ({
             {/* Calls List */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-primary" />
-                  Call Records ({projectCalls.length})
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-primary" />
+                    Call Records ({projectCalls.length})
+                  </CardTitle>
+                  <Button
+                    size="sm"
+                    onClick={() => setAddCallOpen(true)}
+                    className="h-8"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Call
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {projectCalls.length === 0 ? (
@@ -184,20 +231,30 @@ const ProjectDetailsDialog = ({
                       return (
                         <div
                           key={call.id}
-                          className="bg-muted/30 rounded-lg p-3 border"
+                          className="bg-muted/30 rounded-lg p-3 border group"
                         >
                           <div className="flex items-start justify-between mb-2">
                             <div className="flex items-center gap-2">
                               <User className="h-4 w-4 text-muted-foreground" />
                               <span className="font-medium text-sm">{call.customerName}</span>
                             </div>
-                            <Badge
-                              variant="outline"
-                              className={cn('capitalize text-xs', callStatusColors[call.status])}
-                            >
-                              <StatusIcon className="h-3 w-3 mr-1" />
-                              {call.status}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className={cn('capitalize text-xs', callStatusColors[call.status])}
+                              >
+                                <StatusIcon className="h-3 w-3 mr-1" />
+                                {call.status}
+                              </Badge>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => handleDeleteCall(call)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
                           </div>
                           <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                             <div className="flex items-center gap-1">
@@ -237,6 +294,32 @@ const ProjectDetailsDialog = ({
           </div>
         </div>
       </DialogContent>
+
+      <AddCallDialog
+        open={addCallOpen}
+        onOpenChange={setAddCallOpen}
+        projectId={project.id}
+      />
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Call Record</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the call record for "{callToDelete?.customerName}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteCall}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 };
