@@ -9,6 +9,7 @@ import AuthLayout from '@/components/AuthLayout';
 import StepIndicator from '@/components/StepIndicator';
 import { Eye, EyeOff, Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { setPassword as setPasswordApi } from '@/services/authApi';
 
 const PasswordStep = () => {
   const [password, setPassword] = useState('');
@@ -16,6 +17,7 @@ const PasswordStep = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
   const { toast } = useToast();
   const { isVerified, currentEmail, setVendorPassword } = useVendor();
@@ -39,6 +41,7 @@ const PasswordStep = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
 
     if (!allRequirementsMet) {
       toast({
@@ -59,9 +62,17 @@ const PasswordStep = () => {
     }
 
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
     
-    // Store the password
+    // Call API to set password
+    const response = await setPasswordApi(currentEmail, password);
+
+    if (response.error) {
+      setError(response.error);
+      setIsLoading(false);
+      return;
+    }
+    
+    // Store the password locally as well
     setVendorPassword(currentEmail, password);
     
     toast({
@@ -84,6 +95,10 @@ const PasswordStep = () => {
       />
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {error && (
+          <p className="text-sm text-destructive text-center">{error}</p>
+        )}
+        
         <div className="space-y-2">
           <Label htmlFor="password">Password</Label>
           <div className="relative">

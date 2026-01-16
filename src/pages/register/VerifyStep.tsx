@@ -5,9 +5,9 @@ import { useToast } from '@/hooks/use-toast';
 import { useVendor } from '@/contexts/VendorContext';
 import AuthLayout from '@/components/AuthLayout';
 import StepIndicator from '@/components/StepIndicator';
+import { verifyOtp, registerEmail } from '@/services/authApi';
 
 const OTP_LENGTH = 6;
-const CORRECT_OTP = '123456'; // Demo OTP
 
 const VerifyStep = () => {
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
@@ -75,23 +75,39 @@ const VerifyStep = () => {
     }
 
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    
+    // Call API to verify OTP
+    const response = await verifyOtp(currentEmail, otpString);
 
-    if (otpString === CORRECT_OTP) {
-      setIsVerified(true);
-      toast({
-        title: "Email Verified",
-        description: "Your email has been successfully verified",
-      });
-      navigate('/register/password');
-    } else {
-      setError('Invalid verification code. Try 123456 for demo.');
+    if (response.error) {
+      setError(response.error);
       setIsLoading(false);
+      return;
     }
+
+    setIsVerified(true);
+    toast({
+      title: "Email Verified",
+      description: "Your email has been successfully verified",
+    });
+    navigate('/register/password');
   };
 
   const handleResend = async () => {
     setResendTimer(30);
+    
+    // Call API to resend OTP
+    const response = await registerEmail(currentEmail);
+    
+    if (response.error) {
+      toast({
+        title: "Error",
+        description: response.error,
+        variant: "destructive",
+      });
+      return;
+    }
+    
     toast({
       title: "OTP Resent",
       description: `A new verification code has been sent to ${currentEmail}`,
@@ -132,10 +148,6 @@ const VerifyStep = () => {
           {error && (
             <p className="text-sm text-destructive text-center">{error}</p>
           )}
-          
-          <p className="text-xs text-muted-foreground text-center">
-            Demo: Use code <span className="font-mono font-semibold text-foreground">123456</span>
-          </p>
         </div>
 
         <Button
