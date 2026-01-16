@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import AuthLayout from '@/components/AuthLayout';
 import { useVendor } from '@/contexts/VendorContext';
 import { toast } from '@/hooks/use-toast';
-import { loginUser, setAuthToken } from '@/services/authApi';
+import { loginUser, setAuthToken, getVendorProfile } from '@/services/authApi';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -22,7 +22,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 const Login = () => {
   const navigate = useNavigate();
-  const { setCurrentVendor, vendors } = useVendor();
+  const { setCurrentVendor } = useVendor();
   const [showPassword, setShowPassword] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{
     type: 'pending' | 'rejected' | 'error';
@@ -64,13 +64,24 @@ const Login = () => {
       setAuthToken(response.data.access_token);
     }
 
-    // Find vendor locally for display purposes
-    const vendor = vendors.find(
-      (v) => v.email.toLowerCase() === data.email.toLowerCase()
-    );
-
-    if (vendor) {
-      setCurrentVendor(vendor);
+    // Fetch vendor profile from backend
+    const profileResponse = await getVendorProfile();
+    
+    if (profileResponse.data) {
+      const profile = profileResponse.data;
+      setCurrentVendor({
+        id: profile._id,
+        email: profile.email,
+        companyName: profile.company_name || '',
+        gstNumber: profile.gst_number || '',
+        registrationNumber: profile.registration_number || '',
+        businessAddress: profile.business_address || '',
+        contactPersonName: profile.contact_person_name || '',
+        phoneNumber: profile.phone_number || '',
+        websiteUrl: profile.website_url || '',
+        status: 'approved', // Only approved users can login
+        createdAt: new Date(),
+      });
     }
 
     toast({

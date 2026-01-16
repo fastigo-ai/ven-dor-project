@@ -197,3 +197,49 @@ export const createVendorProfile = async (payload: VendorProfilePayload): Promis
     return { error: 'Network error. Please try again.' };
   }
 };
+
+// Get vendor profile (requires auth token)
+export interface VendorProfile {
+  _id: string;
+  email: string;
+  company_name?: string;
+  gst_number?: string;
+  registration_number?: string;
+  business_address?: string;
+  contact_person_name?: string;
+  phone_number?: string;
+  website_url?: string;
+  status: string;
+  profile_status?: string;
+}
+
+export const getVendorProfile = async (): Promise<ApiResponse<VendorProfile>> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      return { error: 'Authentication required. Please login again.' };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/vendor/profile`, {
+      method: 'GET',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 401) {
+        removeAuthToken();
+        return { error: 'Session expired. Please login again.' };
+      }
+      return { error: error.detail || 'Failed to fetch profile' };
+    }
+    
+    const data = await response.json();
+    return { data };
+  } catch (error) {
+    return { error: 'Network error. Please try again.' };
+  }
+};
