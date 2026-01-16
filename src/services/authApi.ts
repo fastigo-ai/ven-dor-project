@@ -50,7 +50,7 @@ export const verifyOtp = async (email: string, otp: string): Promise<ApiResponse
 };
 
 // Set password after OTP verification
-export const setPassword = async (email: string, password: string): Promise<ApiResponse<{ message: string }>> => {
+export const setPassword = async (email: string, password: string): Promise<ApiResponse<{ message: string; access_token?: string }>> => {
   try {
     const response = await fetch(`${API_BASE_URL}/auth/set-password`, {
       method: 'POST',
@@ -64,6 +64,12 @@ export const setPassword = async (email: string, password: string): Promise<ApiR
     }
     
     const data = await response.json();
+    
+    // Store the token if returned by backend
+    if (data.access_token) {
+      setAuthToken(data.access_token);
+    }
+    
     return { data };
   } catch (error) {
     return { error: 'Network error. Please try again.' };
