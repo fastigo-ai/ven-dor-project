@@ -67,7 +67,23 @@ const Login = () => {
     // Fetch vendor profile from backend
     const profileResponse = await getVendorProfile();
     
-    if (profileResponse.data) {
+    if (profileResponse.error) {
+      // Profile fetch failed - set a minimal vendor for dashboard access
+      // This handles case where GET /vendor/profile endpoint isn't available yet
+      setCurrentVendor({
+        id: 'temp-' + Date.now(),
+        email: data.email,
+        companyName: '',
+        gstNumber: '',
+        registrationNumber: '',
+        businessAddress: '',
+        contactPersonName: '',
+        phoneNumber: '',
+        websiteUrl: '',
+        status: 'approved', // Only approved users can login successfully
+        createdAt: new Date(),
+      });
+    } else if (profileResponse.data) {
       const profile = profileResponse.data;
       setCurrentVendor({
         id: profile._id,
