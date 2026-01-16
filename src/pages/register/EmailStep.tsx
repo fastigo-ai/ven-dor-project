@@ -8,6 +8,7 @@ import { useVendor } from '@/contexts/VendorContext';
 import AuthLayout from '@/components/AuthLayout';
 import StepIndicator from '@/components/StepIndicator';
 import { z } from 'zod';
+import { registerEmail } from '@/services/authApi';
 
 const emailSchema = z.string().email('Please enter a valid email address');
 
@@ -31,8 +32,14 @@ const EmailStep = () => {
 
     setIsLoading(true);
 
-    // Simulate sending OTP
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    // Call API to send OTP
+    const response = await registerEmail(email);
+
+    if (response.error) {
+      setError(response.error);
+      setIsLoading(false);
+      return;
+    }
 
     setCurrentEmail(email);
     toast({
@@ -95,7 +102,7 @@ const EmailStep = () => {
 
       <p className="text-center text-sm text-muted-foreground mt-6">
         Already registered?{' '}
-        <a href="#" className="text-primary hover:underline font-medium">
+        <a href="/login" className="text-primary hover:underline font-medium">
           Sign in here
         </a>
       </p>

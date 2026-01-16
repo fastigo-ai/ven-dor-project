@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import AuthLayout from '@/components/AuthLayout';
 import { useVendor } from '@/contexts/VendorContext';
 import { toast } from '@/hooks/use-toast';
+import { loginUser, setAuthToken } from '@/services/authApi';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -21,7 +22,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 const Login = () => {
   const navigate = useNavigate();
-  const { vendors, setCurrentVendor, getVendorPassword } = useVendor();
+  const { setCurrentVendor, vendors } = useVendor();
   const [showPassword, setShowPassword] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{
     type: 'pending' | 'rejected' | 'error';
@@ -39,54 +40,42 @@ const Login = () => {
   const onSubmit = async (data: LoginFormData) => {
     setStatusMessage(null);
     
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    // Call API to login
+    const response = await loginUser(data.email, data.password);
 
-    // Find vendor by email
+    if (response.error) {
+      if (response.error === 'PENDING_APPROVAL') {
+        setStatusMessage({
+          type: 'pending',
+          message: 'Your account is under review. Please wait for admin approval.',
+        });
+        return;
+      }
+      
+      setStatusMessage({
+        type: 'error',
+        message: response.error,
+      });
+      return;
+    }
+
+    // Store the auth token
+    if (response.data?.access_token) {
+      setAuthToken(response.data.access_token);
+    }
+
+    // Find vendor locally for display purposes
     const vendor = vendors.find(
       (v) => v.email.toLowerCase() === data.email.toLowerCase()
     );
 
-    if (!vendor) {
-      setStatusMessage({
-        type: 'error',
-        message: 'Invalid email or password. Please check your credentials.',
-      });
-      return;
+    if (vendor) {
+      setCurrentVendor(vendor);
     }
 
-    // Check password
-    const storedPassword = getVendorPassword(vendor.email);
-    if (storedPassword !== data.password) {
-      setStatusMessage({
-        type: 'error',
-        message: 'Invalid email or password. Please check your credentials.',
-      });
-      return;
-    }
-
-    // Check vendor status
-    if (vendor.status === 'pending') {
-      setStatusMessage({
-        type: 'pending',
-        message: 'Your account is under review. Please wait for admin approval.',
-      });
-      return;
-    }
-
-    if (vendor.status === 'rejected') {
-      setStatusMessage({
-        type: 'rejected',
-        message: 'Your registration has been rejected. Please contact support.',
-      });
-      return;
-    }
-
-    // Approved vendor - proceed to dashboard
-    setCurrentVendor(vendor);
     toast({
       title: 'Welcome back!',
-      description: `Logged in as ${vendor.companyName}`,
+      description: `Logged in successfully`,
     });
     navigate('/dashboard');
   };
