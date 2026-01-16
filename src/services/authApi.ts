@@ -148,3 +148,46 @@ export const getAuthToken = (): string | null => {
 export const removeAuthToken = () => {
   localStorage.removeItem('auth_token');
 };
+
+// Vendor Profile API
+interface VendorProfilePayload {
+  company_name: string;
+  gst_number: string;
+  registration_number: string;
+  business_address: string;
+  contact_person_name: string;
+  phone_number: string;
+  website_url?: string;
+}
+
+export const createVendorProfile = async (payload: VendorProfilePayload): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      return { error: 'Authentication required. Please login again.' };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/vendor/profile`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(payload),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 401) {
+        removeAuthToken();
+        return { error: 'Session expired. Please login again.' };
+      }
+      return { error: error.detail || 'Failed to submit company details' };
+    }
+    
+    const data = await response.json();
+    return { data };
+  } catch (error) {
+    return { error: 'Network error. Please try again.' };
+  }
+};
