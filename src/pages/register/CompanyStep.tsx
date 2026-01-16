@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useVendor } from '@/contexts/VendorContext';
 import AuthLayout from '@/components/AuthLayout';
 import StepIndicator from '@/components/StepIndicator';
+import { createVendorProfile } from '@/services/authApi';
 import { z } from 'zod';
 
 const companySchema = z.object({
@@ -64,8 +65,30 @@ const CompanyStep = () => {
     }
 
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
 
+    // Call vendor profile API
+    const response = await createVendorProfile({
+      company_name: formData.companyName,
+      gst_number: formData.gstNumber,
+      registration_number: formData.registrationNumber,
+      business_address: formData.businessAddress,
+      contact_person_name: formData.contactPersonName,
+      phone_number: formData.phoneNumber,
+      website_url: formData.websiteUrl || undefined,
+    });
+
+    setIsLoading(false);
+
+    if (response.error) {
+      toast({
+        title: "Submission Failed",
+        description: response.error,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Also update local context for demo purposes
     addVendor({
       email: currentEmail,
       ...formData,
