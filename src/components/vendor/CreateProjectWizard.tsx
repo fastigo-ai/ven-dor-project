@@ -315,27 +315,15 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
         return;
       }
 
-      // Check if project_id is returned - backend should return { message, project_id }
-      if (!projectResult.data?.project_id) {
-        console.warn('Backend did not return project_id. Response:', projectResult.data);
-        toast({
-          title: 'Backend Error',
-          description: 'Project created but ID not returned. Please update backend to return project_id.',
-          variant: 'destructive',
-        });
-        // Fallback to mock data
-        const mockAnalysis = parsedData.map((location) => ({
-          ...location,
-          serviceable: Math.random() > 0.2,
-          reason: Math.random() > 0.2 ? undefined : 'No engineer available in this area',
-        }));
-        setLocationAnalysis(mockAnalysis);
-        setCurrentStep(3);
-        return;
-      }
-
+      // Project created successfully with project_id
       const projectId = projectResult.data.project_id;
+      console.log('Project created with ID:', projectId);
       setApiProjectId(projectId);
+
+      toast({
+        title: 'Project Created',
+        description: 'Uploading call records...',
+      });
 
       // Step 2: Upload CSV calls
       const uploadResult = await uploadCallsBulk(file, projectId);
