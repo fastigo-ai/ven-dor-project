@@ -291,7 +291,8 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
 
     try {
       // Step 1: Create project via API
-      const { createProject, uploadCallsBulk, validateProjectAddresses, attachSlaToProject } = await import('@/services/projectApi');
+      const projectApi = await import('@/services/projectApi');
+      const { createProject, uploadCallsBulk, validateProjectAddresses, attachSlaToProject } = projectApi;
       
       const projectResult = await createProject({
         project_name: projectData.name,
