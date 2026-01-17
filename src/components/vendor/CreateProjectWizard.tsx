@@ -47,26 +47,53 @@ import {
 } from 'lucide-react';
 
 const supportTypes = [
-  'Breakfix',
-  'PM Activity',
-  'On Call Support',
-  'Server Call',
-  'Desktop Installation',
+  'pm activity',
+  'breakfix',
+  'on call',
 ] as const;
+
+const supportTypeLabels: Record<string, string> = {
+  'pm activity': 'PM Activity',
+  'breakfix': 'Breakfix',
+  'on call': 'On Call Support',
+};
 
 const projectSchema = z.object({
   name: z.string().min(3, 'Project name must be at least 3 characters'),
   supportType: z.enum(supportTypes, { required_error: 'Please select a support type' }),
+  l1SupportName: z.string().min(2, 'L1 support name is required'),
+  l1SupportNumber: z.string().regex(/^\d{10}$/, 'Enter valid 10-digit phone number'),
 });
 
 type ProjectFormData = z.infer<typeof projectSchema>;
 
+// Backend CSV required columns
+const REQUIRED_CSV_COLUMNS = [
+  "State Name",
+  "BRANCH NAME",
+  "branch catg.",
+  "Branch code",
+  "Complete Address",
+  "Pincode",
+  "Branch Contact Name",
+  "Branch Telephone Number",
+  "Assets Count",
+  "Support Type",
+  "Asset Type"
+];
+
 interface ParsedCall {
-  customerName: string;
-  customerPhone: string;
-  customerAddress: string;
+  stateName: string;
+  branchName: string;
+  branchCategory: string;
+  branchCode: string;
+  address: string;
   pincode: string;
-  orderAmount: number;
+  contactName: string;
+  contactPhone: string;
+  assetsCount: number;
+  supportType: string;
+  assetType: string;
 }
 
 interface LocationWithStatus extends ParsedCall {
@@ -80,8 +107,6 @@ interface CreateProjectWizardProps {
 }
 
 type UploadType = 'bulk' | 'single' | null;
-
-const requiredColumns = ['customerName', 'customerPhone', 'customerAddress', 'pincode', 'orderAmount'];
 
 // Mock serviceable pincodes
 const serviceablePincodes = [
@@ -154,33 +179,31 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
   const parseCSV = (text: string): { data: ParsedCall[]; errors: string[] } => {
     const lines = text.trim().split('\n');
     const data: ParsedCall[] = [];
+    const errors: string[] = [];
 
     if (lines.length < 2) {
-      return { data, errors: [] };
+      errors.push('CSV must contain at least a header row and one data row');
+      return { data, errors };
     }
 
-    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+    const headers = lines[0].split(',').map((h) => h.trim());
     
-    const headerMap: Record<string, string> = {
-      'customer name': 'customername',
-      'customer_name': 'customername',
-      'name': 'customername',
-      'customer phone': 'customerphone',
-      'customer_phone': 'customerphone',
-      'phone': 'customerphone',
-      'mobile': 'customerphone',
-      'customer address': 'customeraddress',
-      'customer_address': 'customeraddress',
-      'address': 'customeraddress',
-      'pin code': 'pincode',
-      'pin_code': 'pincode',
-      'zip': 'pincode',
-      'order amount': 'orderamount',
-      'order_amount': 'orderamount',
-      'amount': 'orderamount',
-    };
+    // Check for required columns (case-insensitive)
+    const headerLower = headers.map(h => h.toLowerCase());
+    const missingColumns = REQUIRED_CSV_COLUMNS.filter(
+      col => !headerLower.includes(col.toLowerCase())
+    );
 
-    const normalizedHeaders = headers.map((h) => headerMap[h] || h.replace(/[^a-z]/g, ''));
+    if (missingColumns.length > 0) {
+      errors.push(`Missing required columns: ${missingColumns.join(', ')}`);
+      return { data, errors };
+    }
+
+    // Build column index map
+    const colIndex: Record<string, number> = {};
+    headers.forEach((h, idx) => {
+      colIndex[h.toLowerCase()] = idx;
+    });
 
     for (let i = 1; i < lines.length; i++) {
       const values = lines[i].split(',').map((v) => v.trim());
@@ -189,21 +212,38 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
         continue;
       }
 
-      const row: Record<string, string> = {};
-      normalizedHeaders.forEach((header, index) => {
-        row[header] = values[index] || '';
-      });
+      const getValue = (colName: string) => values[colIndex[colName.toLowerCase()]] || '';
+
+      // Validate pincode
+      const pincode = getValue('Pincode');
+      if (!/^\d{6}$/.test(pincode)) {
+        errors.push(`Row ${i + 1}: Invalid pincode "${pincode}" - must be 6 digits`);
+        continue;
+      }
+
+      // Validate assets count
+      const assetsCount = parseInt(getValue('Assets Count'), 10);
+      if (isNaN(assetsCount) || assetsCount < 0) {
+        errors.push(`Row ${i + 1}: Invalid Assets Count`);
+        continue;
+      }
 
       data.push({
-        customerName: row.customername || '',
-        customerPhone: row.customerphone || '',
-        customerAddress: row.customeraddress || '',
-        pincode: row.pincode || '',
-        orderAmount: Number(row.orderamount) || 0,
+        stateName: getValue('State Name'),
+        branchName: getValue('BRANCH NAME'),
+        branchCategory: getValue('branch catg.'),
+        branchCode: getValue('Branch code'),
+        address: getValue('Complete Address'),
+        pincode: pincode,
+        contactName: getValue('Branch Contact Name'),
+        contactPhone: getValue('Branch Telephone Number'),
+        assetsCount: assetsCount,
+        supportType: getValue('Support Type').toLowerCase(),
+        assetType: getValue('Asset Type'),
       });
     }
 
-    return { data, errors: [] };
+    return { data, errors };
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -279,11 +319,9 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
   const getApplicableRate = (): RateCard | undefined => {
     if (!projectData) return undefined;
     const rateMapping: Record<string, string> = {
-      'Breakfix': 'Standard Delivery',
-      'PM Activity': 'Bulk Shipment',
-      'On Call Support': 'Express Delivery',
-      'Server Call': 'Same Day Delivery',
-      'Desktop Installation': 'Fragile Items',
+      'breakfix': 'Standard Delivery',
+      'pm activity': 'Bulk Shipment',
+      'on call': 'Express Delivery',
     };
     const serviceType = rateMapping[projectData.supportType] || 'Standard Delivery';
     return rateCards.find((card) => card.serviceType === serviceType && card.isActive);
@@ -292,11 +330,11 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
   const applicableRate = getApplicableRate();
 
   const calculateLocationCost = (location: ParsedCall): number => {
-    if (!applicableRate) return location.orderAmount;
+    if (!applicableRate) return location.assetsCount * 100;
     const baseCost = applicableRate.baseRate;
     const estimatedKm = 10;
     const kmCost = applicableRate.perKmRate * estimatedKm;
-    return baseCost + kmCost + location.orderAmount;
+    return baseCost + kmCost + (location.assetsCount * 100);
   };
 
   const totalServiceableValue = serviceableLocations.reduce(
@@ -314,25 +352,32 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
     setIsSubmitting(true);
     try {
       // Create project
-      const projectId = `proj-${Date.now()}`;
-      addProject({
+      const newProject = addProject({
         vendorId: currentVendor.id,
         name: projectData.name,
         supportType: projectData.supportType,
+        l1SupportName: projectData.l1SupportName,
+        l1SupportNumber: projectData.l1SupportNumber,
         status: projectStatus === 'approved' ? 'active' : 'on-hold',
       });
 
       // Add serviceable calls to the project
       if (projectStatus === 'approved' && serviceableLocations.length > 0) {
         const callsToAdd = serviceableLocations.map((call) => ({
-          customerName: call.customerName,
-          customerPhone: call.customerPhone,
-          customerAddress: call.customerAddress,
+          stateName: call.stateName,
+          branchName: call.branchName,
+          branchCategory: call.branchCategory,
+          branchCode: call.branchCode,
+          address: call.address,
           pincode: call.pincode,
-          orderAmount: call.orderAmount,
-          projectId: projectId,
+          contactName: call.contactName,
+          contactPhone: call.contactPhone,
+          assetsCount: call.assetsCount,
+          supportType: call.supportType,
+          assetType: call.assetType,
+          projectId: newProject.id,
         }));
-        addCalls(callsToAdd);
+        addCalls(callsToAdd, newProject.id);
       }
 
       toast({
@@ -459,13 +504,37 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
                   <SelectContent className="bg-background border z-50">
                     {supportTypes.map((type) => (
                       <SelectItem key={type} value={type}>
-                        {type}
+                        {supportTypeLabels[type]}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {errors.supportType && (
                   <p className="text-sm text-destructive">{errors.supportType.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="l1SupportName">L1 Support Name *</Label>
+                <Input
+                  id="l1SupportName"
+                  placeholder="e.g., Amit Kumar"
+                  {...register('l1SupportName')}
+                />
+                {errors.l1SupportName && (
+                  <p className="text-sm text-destructive">{errors.l1SupportName.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="l1SupportNumber">L1 Support Number *</Label>
+                <Input
+                  id="l1SupportNumber"
+                  placeholder="e.g., 9876543210"
+                  {...register('l1SupportNumber')}
+                />
+                {errors.l1SupportNumber && (
+                  <p className="text-sm text-destructive">{errors.l1SupportNumber.message}</p>
                 )}
               </div>
 
@@ -644,8 +713,8 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
                       {serviceableLocations.map((loc, idx) => (
                         <div key={idx} className="bg-green-500/5 rounded-lg p-3 flex justify-between items-center">
                           <div>
-                            <p className="font-medium text-sm">{loc.customerName}</p>
-                            <p className="text-xs text-muted-foreground">{loc.customerAddress}</p>
+                            <p className="font-medium text-sm">{loc.branchName}</p>
+                            <p className="text-xs text-muted-foreground">{loc.address}</p>
                           </div>
                           <Badge className="bg-green-500/10 text-green-600">{loc.pincode}</Badge>
                         </div>
@@ -669,7 +738,7 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
                       {nonServiceableLocations.map((loc, idx) => (
                         <div key={idx} className="bg-destructive/5 rounded-lg p-3">
                           <div className="flex justify-between items-start mb-1">
-                            <p className="font-medium text-sm">{loc.customerName}</p>
+                            <p className="font-medium text-sm">{loc.branchName}</p>
                             <Badge variant="destructive">{loc.pincode}</Badge>
                           </div>
                           <p className="text-xs text-destructive">{loc.reason}</p>
