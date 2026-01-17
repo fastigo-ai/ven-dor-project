@@ -19,21 +19,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useVendor } from '@/contexts/VendorContext';
+import { useVendor, SupportType } from '@/contexts/VendorContext';
 import { toast } from '@/hooks/use-toast';
 import { FolderPlus } from 'lucide-react';
 
-const supportTypes = [
-  'Breakfix',
-  'PM Activity',
-  'On Call Support',
-  'Server Call',
-  'Desktop Installation',
-] as const;
+const supportTypes: SupportType[] = [
+  'pm activity',
+  'breakfix',
+  'on call',
+];
+
+const supportTypeLabels: Record<SupportType, string> = {
+  'pm activity': 'PM Activity',
+  'breakfix': 'Breakfix',
+  'on call': 'On Call Support',
+};
 
 const projectSchema = z.object({
   name: z.string().min(3, 'Project name must be at least 3 characters'),
-  supportType: z.enum(supportTypes, { required_error: 'Please select a support type' }),
+  supportType: z.enum(['pm activity', 'breakfix', 'on call'] as const, { required_error: 'Please select a support type' }),
   status: z.enum(['active', 'on-hold']),
 });
 
@@ -54,7 +58,6 @@ const CreateProjectDialog = ({ open, onOpenChange }: CreateProjectDialogProps) =
     setValue,
     reset,
     formState: { errors },
-    watch,
   } = useForm<ProjectFormData>({
     resolver: zodResolver(projectSchema),
     defaultValues: {
@@ -125,7 +128,7 @@ const CreateProjectDialog = ({ open, onOpenChange }: CreateProjectDialogProps) =
           <div className="space-y-2">
             <Label htmlFor="supportType">Support Type *</Label>
             <Select
-              onValueChange={(value: typeof supportTypes[number]) => setValue('supportType', value)}
+              onValueChange={(value: SupportType) => setValue('supportType', value)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select support type" />
@@ -133,7 +136,7 @@ const CreateProjectDialog = ({ open, onOpenChange }: CreateProjectDialogProps) =
               <SelectContent className="bg-background border z-50">
                 {supportTypes.map((type) => (
                   <SelectItem key={type} value={type}>
-                    {type}
+                    {supportTypeLabels[type]}
                   </SelectItem>
                 ))}
               </SelectContent>

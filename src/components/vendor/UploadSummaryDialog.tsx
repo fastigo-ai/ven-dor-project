@@ -24,11 +24,17 @@ import {
 } from 'lucide-react';
 
 interface LocationData {
-  customerName: string;
-  customerPhone: string;
-  customerAddress: string;
+  stateName: string;
+  branchName: string;
+  branchCategory: string;
+  branchCode: string;
+  address: string;
   pincode: string;
-  orderAmount: number;
+  contactName: string;
+  contactPhone: string;
+  assetsCount: number;
+  supportType: string;
+  assetType: string;
 }
 
 interface UploadSummaryDialogProps {
@@ -41,14 +47,11 @@ interface UploadSummaryDialogProps {
   onNext: () => void;
 }
 
-// Mock serviceable pincodes (in production, this would come from backend)
+// Mock serviceable pincodes
 const serviceablePincodes = [
   '400050', '400051', '400052', '400053', '400054', '400055', '400056', '400057', '400058', '400059',
   '400060', '400061', '400062', '400063', '400064', '400065', '400066', '400067', '400068', '400069',
-  '400070', '400071', '400072', '400073', '400074', '400075', '400076', '400077', '400078', '400079',
-  '400080', '400081', '400082', '400083', '400084', '400085', '400086', '400087', '400088', '400089',
   '560001', '560002', '560003', '560004', '560005', '560008', '560010', '560011', '560017', '560018',
-  '560025', '560029', '560030', '560034', '560038', '560041', '560043', '560047', '560048', '560050',
   '110001', '110002', '110003', '110005', '110006', '110007', '110008', '110009', '110010', '110011',
 ];
 
@@ -63,8 +66,6 @@ const getServiceabilityStatus = (pincode: string): { serviceable: boolean; reaso
   if (serviceablePincodes.includes(pincode)) {
     return { serviceable: true };
   }
-  
-  // Assign random reasons for non-serviceable locations
   const reasons = Object.keys(nonServiceableReasons);
   const randomReason = reasons[Math.floor(Math.random() * reasons.length)];
   return { serviceable: false, reason: nonServiceableReasons[randomReason] };
@@ -81,7 +82,6 @@ const UploadSummaryDialog = ({
 }: UploadSummaryDialogProps) => {
   const { rateCards } = useVendor();
   
-  // Separate serviceable and non-serviceable locations
   const locationAnalysis = uploadedData.map((location) => ({
     ...location,
     ...getServiceabilityStatus(location.pincode),
@@ -90,14 +90,11 @@ const UploadSummaryDialog = ({
   const serviceableLocations = locationAnalysis.filter((loc) => loc.serviceable);
   const nonServiceableLocations = locationAnalysis.filter((loc) => !loc.serviceable);
 
-  // Get applicable rate card based on support type
   const getApplicableRate = (): RateCard | undefined => {
     const rateMapping: Record<string, string> = {
-      'Breakfix': 'Standard Delivery',
-      'PM Activity': 'Bulk Shipment',
-      'On Call Support': 'Express Delivery',
-      'Server Call': 'Same Day Delivery',
-      'Desktop Installation': 'Fragile Items',
+      'breakfix': 'Standard Delivery',
+      'pm activity': 'Bulk Shipment',
+      'on call': 'Express Delivery',
     };
     const serviceType = rateMapping[supportType] || 'Standard Delivery';
     return rateCards.find((card) => card.serviceType === serviceType && card.isActive);
@@ -105,13 +102,12 @@ const UploadSummaryDialog = ({
 
   const applicableRate = getApplicableRate();
 
-  // Calculate totals
   const calculateLocationCost = (location: LocationData): number => {
-    if (!applicableRate) return location.orderAmount;
+    if (!applicableRate) return location.assetsCount * 100;
     const baseCost = applicableRate.baseRate;
-    const estimatedKm = 10; // Mock distance calculation
+    const estimatedKm = 10;
     const kmCost = applicableRate.perKmRate * estimatedKm;
-    return baseCost + kmCost + location.orderAmount;
+    return baseCost + kmCost + (location.assetsCount * 100);
   };
 
   const totalServiceableValue = serviceableLocations.reduce(
@@ -143,7 +139,7 @@ const UploadSummaryDialog = ({
 
         <ScrollArea className="flex-1 pr-4">
           <div className="space-y-6 py-4">
-            {/* Project & SOW Details */}
+            {/* Project Details */}
             <Card className="border-primary/20">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -173,71 +169,26 @@ const UploadSummaryDialog = ({
             <div className="grid grid-cols-3 gap-4">
               <Card className="bg-muted/30">
                 <CardContent className="pt-4 text-center">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-2">
-                    <MapPin className="h-5 w-5 text-primary" />
-                  </div>
+                  <MapPin className="h-5 w-5 text-primary mx-auto mb-2" />
                   <p className="text-2xl font-bold">{uploadedData.length}</p>
                   <p className="text-xs text-muted-foreground">Total Locations</p>
                 </CardContent>
               </Card>
               <Card className="bg-green-500/5 border-green-500/20">
                 <CardContent className="pt-4 text-center">
-                  <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-2">
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                  </div>
+                  <CheckCircle className="h-5 w-5 text-green-600 mx-auto mb-2" />
                   <p className="text-2xl font-bold text-green-600">{serviceableLocations.length}</p>
                   <p className="text-xs text-muted-foreground">Serviceable</p>
                 </CardContent>
               </Card>
               <Card className="bg-destructive/5 border-destructive/20">
                 <CardContent className="pt-4 text-center">
-                  <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-2">
-                    <XCircle className="h-5 w-5 text-destructive" />
-                  </div>
+                  <XCircle className="h-5 w-5 text-destructive mx-auto mb-2" />
                   <p className="text-2xl font-bold text-destructive">{nonServiceableLocations.length}</p>
                   <p className="text-xs text-muted-foreground">Not Serviceable</p>
                 </CardContent>
               </Card>
             </div>
-
-            {/* Rate Card Information */}
-            {applicableRate && (
-              <Card className="border-primary/20">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <IndianRupee className="h-4 w-4 text-primary" />
-                    Applicable Rate Card
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="bg-muted/50 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <Truck className="h-4 w-4 text-primary" />
-                        <span className="font-medium">{applicableRate.serviceType}</span>
-                      </div>
-                      <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
-                        Active
-                      </Badge>
-                    </div>
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <p className="text-muted-foreground text-xs">Base Rate</p>
-                        <p className="font-mono font-semibold">₹{applicableRate.baseRate}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground text-xs">Per KM Rate</p>
-                        <p className="font-mono font-semibold">₹{applicableRate.perKmRate}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground text-xs">Urgent Multiplier</p>
-                        <p className="font-mono font-semibold">{applicableRate.urgentMultiplier}×</p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
             {/* Serviceable Locations */}
             {serviceableLocations.length > 0 && (
@@ -251,23 +202,18 @@ const UploadSummaryDialog = ({
                 <CardContent>
                   <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
                     {serviceableLocations.map((location, index) => (
-                      <div
-                        key={index}
-                        className="bg-green-500/5 border border-green-500/20 rounded-lg p-4"
-                      >
+                      <div key={index} className="bg-green-500/5 border border-green-500/20 rounded-lg p-4">
                         <div className="flex justify-between items-start mb-2">
                           <div>
-                            <p className="font-medium">{location.customerName}</p>
-                            <p className="text-xs text-muted-foreground">{location.customerPhone}</p>
+                            <p className="font-medium">{location.branchName}</p>
+                            <p className="text-xs text-muted-foreground">{location.contactName} - {location.contactPhone}</p>
                           </div>
-                          <Badge className="bg-green-500/10 text-green-600 border-green-500/30">
-                            {location.pincode}
-                          </Badge>
+                          <Badge className="bg-green-500/10 text-green-600">{location.pincode}</Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground mb-3">{location.customerAddress}</p>
+                        <p className="text-sm text-muted-foreground mb-2">{location.address}</p>
                         <Separator className="my-2" />
                         <div className="flex justify-between items-center text-sm">
-                          <span className="text-muted-foreground">Estimated Cost:</span>
+                          <span className="text-muted-foreground">Assets: {location.assetsCount}</span>
                           <span className="font-mono font-semibold text-green-600">
                             ₹{calculateLocationCost(location).toLocaleString()}
                           </span>
@@ -291,24 +237,12 @@ const UploadSummaryDialog = ({
                 <CardContent>
                   <div className="space-y-3 max-h-48 overflow-y-auto pr-2">
                     {nonServiceableLocations.map((location, index) => (
-                      <div
-                        key={index}
-                        className="bg-destructive/5 border border-destructive/20 rounded-lg p-4"
-                      >
+                      <div key={index} className="bg-destructive/5 border border-destructive/20 rounded-lg p-4">
                         <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <p className="font-medium">{location.customerName}</p>
-                            <p className="text-xs text-muted-foreground">{location.customerPhone}</p>
-                          </div>
-                          <Badge variant="destructive" className="bg-destructive/10 text-destructive border-destructive/30">
-                            {location.pincode}
-                          </Badge>
+                          <p className="font-medium">{location.branchName}</p>
+                          <Badge variant="destructive">{location.pincode}</Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground mb-2">{location.customerAddress}</p>
-                        <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 rounded-md p-2">
-                          <XCircle className="h-3 w-3" />
-                          <span>{location.reason}</span>
-                        </div>
+                        <p className="text-xs text-destructive">{location.reason}</p>
                       </div>
                     ))}
                   </div>
@@ -316,7 +250,7 @@ const UploadSummaryDialog = ({
               </Card>
             )}
 
-            {/* Total Value Summary */}
+            {/* Total Value */}
             <Card className="bg-primary/5 border-primary/30">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
@@ -326,9 +260,7 @@ const UploadSummaryDialog = ({
                   </div>
                   <div className="text-right">
                     <p className="text-sm text-muted-foreground">Total Estimated Value</p>
-                    <p className="text-3xl font-bold text-primary">
-                      ₹{totalServiceableValue.toLocaleString()}
-                    </p>
+                    <p className="text-3xl font-bold text-primary">₹{totalServiceableValue.toLocaleString()}</p>
                   </div>
                 </div>
               </CardContent>
@@ -336,9 +268,8 @@ const UploadSummaryDialog = ({
           </div>
         </ScrollArea>
 
-        {/* Action Buttons */}
         <div className="flex gap-3 pt-4 border-t mt-4">
-          <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
             Back to Edit
           </Button>
           <Button className="flex-1" onClick={handleNext}>
