@@ -296,12 +296,12 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
         l1_support_number: projectData.l1SupportNumber,
       });
 
-      if (projectResult.error) {
-        // API returned an error
-        console.warn('API project creation failed:', projectResult.error);
+      if (projectResult.error || !projectResult.data?.project_id) {
+        // API returned an error or missing project_id
+        console.warn('API project creation failed:', projectResult.error || 'No project_id returned');
         toast({
           title: 'API Error',
-          description: projectResult.error,
+          description: projectResult.error || 'Backend did not return project_id',
           variant: 'destructive',
         });
         // Fallback to mock data
