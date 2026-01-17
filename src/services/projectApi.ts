@@ -109,6 +109,48 @@ export const uploadCallsBulk = async (file: File, projectId: string): Promise<Ap
   }
 };
 
+// SLA payload matching backend schema
+export interface SlaPayload {
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  response_time_minutes: number;
+}
+
+// Attach SLA to project - Backend returns { message }
+export const attachSlaToProject = async (projectId: string, slaPayload: SlaPayload): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      return { error: 'Authentication required. Please login again.' };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/sla`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(slaPayload),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 401) {
+        removeAuthToken();
+        return { error: 'Session expired. Please login again.' };
+      }
+      return { error: error.detail || 'Failed to attach SLA' };
+    }
+    
+    const result: BackendSuccessResponse = await response.json();
+    console.log('Backend attachSlaToProject response:', result);
+    
+    return { data: { message: result.message } };
+  } catch (error) {
+    console.error('attachSlaToProject error:', error);
+    return { error: 'Network error. Please try again.' };
+  }
+};
+
 // Activate project - Backend returns { message }
 export const activateProject = async (projectId: string): Promise<ApiResponse<{ message: string }>> => {
   try {

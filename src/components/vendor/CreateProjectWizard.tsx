@@ -125,6 +125,10 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
   const [problemDescription, setProblemDescription] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // SLA data
+  const [slaPriority, setSlaPriority] = useState<'HIGH' | 'MEDIUM' | 'LOW' | ''>('');
+  const [slaResponseTime, setSlaResponseTime] = useState<string>('');
+  
   // API project ID after creation
   const [apiProjectId, setApiProjectId] = useState<string | null>(null);
   
@@ -287,7 +291,7 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
 
     try {
       // Step 1: Create project via API
-      const { createProject, uploadCallsBulk, validateProjectAddresses } = await import('@/services/projectApi');
+      const { createProject, uploadCallsBulk, validateProjectAddresses, attachSlaToProject } = await import('@/services/projectApi');
       
       const projectResult = await createProject({
         project_name: projectData.name,
@@ -322,10 +326,33 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
 
       toast({
         title: 'Project Created',
+        description: 'Attaching SLA configuration...',
+      });
+
+      // Step 2: Attach SLA to project
+      if (slaPriority && slaResponseTime) {
+        const slaResult = await attachSlaToProject(projectId, {
+          priority: slaPriority,
+          response_time_minutes: parseInt(slaResponseTime),
+        });
+        if (slaResult.error) {
+          console.warn('SLA attachment failed:', slaResult.error);
+          toast({
+            title: 'Warning',
+            description: 'SLA attachment failed. Continuing...',
+            variant: 'destructive',
+          });
+        } else {
+          console.log('SLA attached successfully');
+        }
+      }
+
+      toast({
+        title: 'SLA Configured',
         description: 'Uploading call records...',
       });
 
-      // Step 2: Upload CSV calls
+      // Step 3: Upload CSV calls
       const uploadResult = await uploadCallsBulk(file, projectId);
       if (uploadResult.error) {
         console.warn('CSV upload failed:', uploadResult.error);
@@ -493,6 +520,8 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
     setParsedData([]);
     setValidationErrors([]);
     setProblemDescription('');
+    setSlaPriority('');
+    setSlaResponseTime('');
     setLocationAnalysis([]);
     setProjectStatus(null);
     setApiProjectId(null);
@@ -507,7 +536,7 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
     }
   };
 
-  const isStep2Valid = uploadType && parsedData.length > 0 && problemDescription.trim();
+  const isStep2Valid = uploadType && parsedData.length > 0 && problemDescription.trim() && slaPriority && slaResponseTime && parseInt(slaResponseTime) > 0;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -751,6 +780,62 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
                   </div>
                 </div>
               )}
+
+              {/* SLA Configuration Section */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">SLA Configuration *</Label>
+                <Card className="border-primary/20 bg-primary/5">
+                  <CardContent className="p-4 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="slaPriority" className="text-xs text-muted-foreground">Priority Level</Label>
+                        <Select
+                          value={slaPriority}
+                          onValueChange={(value: 'HIGH' | 'MEDIUM' | 'LOW') => setSlaPriority(value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select priority" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-background border z-50">
+                            <SelectItem value="HIGH">
+                              <span className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                High
+                              </span>
+                            </SelectItem>
+                            <SelectItem value="MEDIUM">
+                              <span className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                                Medium
+                              </span>
+                            </SelectItem>
+                            <SelectItem value="LOW">
+                              <span className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                                Low
+                              </span>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="slaResponseTime" className="text-xs text-muted-foreground">Response Time (minutes)</Label>
+                        <Input
+                          id="slaResponseTime"
+                          type="number"
+                          min="1"
+                          placeholder="e.g., 120"
+                          value={slaResponseTime}
+                          onChange={(e) => setSlaResponseTime(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      SLA defines the expected response time for service calls. Higher priority calls are processed first.
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
 
               {/* Problem Description */}
               <div className="space-y-2">
