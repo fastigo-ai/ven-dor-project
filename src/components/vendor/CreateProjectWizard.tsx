@@ -296,12 +296,37 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
         l1_support_number: projectData.l1SupportNumber,
       });
 
-      if (projectResult.error || !projectResult.data?.project_id) {
-        // Fallback to mock data if API fails
-        console.warn('API project creation failed, using mock validation:', projectResult.error);
+      if (projectResult.error) {
+        // API returned an error
+        console.warn('API project creation failed:', projectResult.error);
+        toast({
+          title: 'API Error',
+          description: projectResult.error,
+          variant: 'destructive',
+        });
+        // Fallback to mock data
         const mockAnalysis = parsedData.map((location) => ({
           ...location,
-          serviceable: Math.random() > 0.2, // 80% serviceable for mock
+          serviceable: Math.random() > 0.2,
+          reason: Math.random() > 0.2 ? undefined : 'No engineer available in this area',
+        }));
+        setLocationAnalysis(mockAnalysis);
+        setCurrentStep(3);
+        return;
+      }
+
+      // Check if project_id is returned - backend should return { message, project_id }
+      if (!projectResult.data?.project_id) {
+        console.warn('Backend did not return project_id. Response:', projectResult.data);
+        toast({
+          title: 'Backend Error',
+          description: 'Project created but ID not returned. Please update backend to return project_id.',
+          variant: 'destructive',
+        });
+        // Fallback to mock data
+        const mockAnalysis = parsedData.map((location) => ({
+          ...location,
+          serviceable: Math.random() > 0.2,
           reason: Math.random() > 0.2 ? undefined : 'No engineer available in this area',
         }));
         setLocationAnalysis(mockAnalysis);
