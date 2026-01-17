@@ -1,4 +1,5 @@
 // Project API Service - Integrates with FastAPI backend
+// Backend uses success_response() wrapper: { message: string, data: {...} }
 
 import { getAuthToken, removeAuthToken } from './authApi';
 
@@ -9,6 +10,12 @@ interface ApiResponse<T = unknown> {
   error?: string;
 }
 
+// Backend success_response wrapper structure
+interface BackendSuccessResponse<T = unknown> {
+  message: string;
+  data?: T;
+}
+
 // Project creation payload matching backend schema
 export interface ProjectCreatePayload {
   project_name: string;
@@ -17,8 +24,8 @@ export interface ProjectCreatePayload {
   l1_support_number: string;
 }
 
-// Create project
-export const createProject = async (payload: ProjectCreatePayload): Promise<ApiResponse<{ message: string; project_id?: string }>> => {
+// Create project - Backend returns { message, data: { project_id } }
+export const createProject = async (payload: ProjectCreatePayload): Promise<ApiResponse<{ project_id: string }>> => {
   try {
     const token = getAuthToken();
     if (!token) {
@@ -43,15 +50,28 @@ export const createProject = async (payload: ProjectCreatePayload): Promise<ApiR
       return { error: error.detail || 'Failed to create project' };
     }
     
-    const data = await response.json();
-    return { data };
+    const result: BackendSuccessResponse<{ project_id: string }> = await response.json();
+    console.log('Backend createProject response:', result);
+    
+    // Extract project_id from nested data structure
+    if (result.data?.project_id) {
+      return { data: { project_id: result.data.project_id } };
+    }
+    
+    // Fallback: check if project_id is at root level (old format)
+    if ((result as any).project_id) {
+      return { data: { project_id: (result as any).project_id } };
+    }
+    
+    return { error: 'Backend did not return project_id' };
   } catch (error) {
+    console.error('createProject error:', error);
     return { error: 'Network error. Please try again.' };
   }
 };
 
-// Bulk upload calls via CSV file
-export const uploadCallsBulk = async (file: File, projectId?: string): Promise<ApiResponse<{ message: string; total_calls?: number }>> => {
+// Bulk upload calls via CSV file - Backend returns { message, data: { total_calls } }
+export const uploadCallsBulk = async (file: File, projectId: string): Promise<ApiResponse<{ total_calls: number }>> => {
   try {
     const token = getAuthToken();
     if (!token) {
@@ -60,11 +80,9 @@ export const uploadCallsBulk = async (file: File, projectId?: string): Promise<A
 
     const formData = new FormData();
     formData.append('file', file);
-    if (projectId) {
-      formData.append('project_id', projectId);
-    }
 
-    const response = await fetch(`${API_BASE_URL}/calls/bulk`, {
+    // Backend expects project_id in URL path
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/calls/bulk`, {
       method: 'POST',
       headers: { 
         'Authorization': `Bearer ${token}`
@@ -81,14 +99,17 @@ export const uploadCallsBulk = async (file: File, projectId?: string): Promise<A
       return { error: error.detail || 'Failed to upload calls' };
     }
     
-    const data = await response.json();
-    return { data };
+    const result: BackendSuccessResponse<{ total_calls: number }> = await response.json();
+    console.log('Backend uploadCallsBulk response:', result);
+    
+    return { data: result.data || { total_calls: 0 } };
   } catch (error) {
+    console.error('uploadCallsBulk error:', error);
     return { error: 'Network error. Please try again.' };
   }
 };
 
-// Activate project
+// Activate project - Backend returns { message }
 export const activateProject = async (projectId: string): Promise<ApiResponse<{ message: string }>> => {
   try {
     const token = getAuthToken();
@@ -113,14 +134,17 @@ export const activateProject = async (projectId: string): Promise<ApiResponse<{ 
       return { error: error.detail || 'Failed to activate project' };
     }
     
-    const data = await response.json();
-    return { data };
+    const result: BackendSuccessResponse = await response.json();
+    console.log('Backend activateProject response:', result);
+    
+    return { data: { message: result.message } };
   } catch (error) {
+    console.error('activateProject error:', error);
     return { error: 'Network error. Please try again.' };
   }
 };
 
-// Get project cost summary
+// Get project cost summary - Backend returns { message, data: { total_cost } }
 export const getProjectCostSummary = async (projectId: string): Promise<ApiResponse<{ total_cost: number }>> => {
   try {
     const token = getAuthToken();
@@ -145,9 +169,12 @@ export const getProjectCostSummary = async (projectId: string): Promise<ApiRespo
       return { error: error.detail || 'Failed to get cost summary' };
     }
     
-    const data = await response.json();
-    return { data };
+    const result: BackendSuccessResponse<{ total_cost: number }> = await response.json();
+    console.log('Backend getProjectCostSummary response:', result);
+    
+    return { data: result.data || { total_cost: 0 } };
   } catch (error) {
+    console.error('getProjectCostSummary error:', error);
     return { error: 'Network error. Please try again.' };
   }
 };
@@ -168,6 +195,7 @@ export interface NonServiceableLocation {
   reason: string;
 }
 
+// Backend returns raw object (not wrapped in success_response)
 export interface AddressValidationResponse {
   summary: {
     service_available: number;
@@ -178,7 +206,7 @@ export interface AddressValidationResponse {
   'Service available locations': ServiceableLocation[];
 }
 
-// Validate project addresses
+// Validate project addresses - Backend returns raw AddressValidationResponse (not wrapped)
 export const validateProjectAddresses = async (projectId: string): Promise<ApiResponse<AddressValidationResponse>> => {
   try {
     const token = getAuthToken();
@@ -203,9 +231,13 @@ export const validateProjectAddresses = async (projectId: string): Promise<ApiRe
       return { error: error.detail || 'Failed to validate addresses' };
     }
     
-    const data = await response.json();
+    // Address validation returns raw response (not wrapped in success_response)
+    const data: AddressValidationResponse = await response.json();
+    console.log('Backend validateProjectAddresses response:', data);
+    
     return { data };
   } catch (error) {
+    console.error('validateProjectAddresses error:', error);
     return { error: 'Network error. Please try again.' };
   }
 };
