@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useVendor, ProjectData, CallData } from '@/contexts/VendorContext';
+import { useVendor, CallData } from '@/contexts/VendorContext';
 import { toast } from '@/hooks/use-toast';
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -27,14 +27,24 @@ interface CSVUploadDialogProps {
 }
 
 interface ParsedCall {
-  customerName: string;
-  customerPhone: string;
-  customerAddress: string;
+  stateName: string;
+  branchName: string;
+  branchCategory: string;
+  branchCode: string;
+  address: string;
   pincode: string;
-  orderAmount: number;
+  contactName: string;
+  contactPhone: string;
+  assetsCount: number;
+  supportType: string;
+  assetType: string;
 }
 
-const requiredColumns = ['customerName', 'customerPhone', 'customerAddress', 'pincode', 'orderAmount'];
+const REQUIRED_COLUMNS = [
+  "State Name", "BRANCH NAME", "branch catg.", "Branch code", "Complete Address",
+  "Pincode", "Branch Contact Name", "Branch Telephone Number", "Assets Count",
+  "Support Type", "Asset Type"
+];
 
 const CSVUploadDialog = ({ open, onOpenChange, uploadType }: CSVUploadDialogProps) => {
   const { currentVendor, projects, addCalls } = useVendor();
@@ -57,33 +67,12 @@ const CSVUploadDialog = ({ open, onOpenChange, uploadType }: CSVUploadDialogProp
       return { data, errors };
     }
 
-    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+    const headers = lines[0].split(',').map((h) => h.trim());
+    const headerLower = headers.map(h => h.toLowerCase());
     
-    // Map common header variations
-    const headerMap: Record<string, string> = {
-      'customer name': 'customername',
-      'customer_name': 'customername',
-      'name': 'customername',
-      'customer phone': 'customerphone',
-      'customer_phone': 'customerphone',
-      'phone': 'customerphone',
-      'mobile': 'customerphone',
-      'customer address': 'customeraddress',
-      'customer_address': 'customeraddress',
-      'address': 'customeraddress',
-      'pin code': 'pincode',
-      'pin_code': 'pincode',
-      'zip': 'pincode',
-      'order amount': 'orderamount',
-      'order_amount': 'orderamount',
-      'amount': 'orderamount',
-    };
-
-    const normalizedHeaders = headers.map((h) => headerMap[h] || h.replace(/[^a-z]/g, ''));
-
     // Check required columns
-    const missingColumns = requiredColumns.filter(
-      (col) => !normalizedHeaders.includes(col.toLowerCase())
+    const missingColumns = REQUIRED_COLUMNS.filter(
+      col => !headerLower.includes(col.toLowerCase())
     );
 
     if (missingColumns.length > 0) {
@@ -91,44 +80,48 @@ const CSVUploadDialog = ({ open, onOpenChange, uploadType }: CSVUploadDialogProp
       return { data, errors };
     }
 
+    // Build column index map
+    const colIndex: Record<string, number> = {};
+    headers.forEach((h, idx) => {
+      colIndex[h.toLowerCase()] = idx;
+    });
+
     // Parse data rows
     for (let i = 1; i < lines.length; i++) {
       const values = lines[i].split(',').map((v) => v.trim());
       
-      if (values.length !== headers.length) {
-        errors.push(`Row ${i + 1}: Column count mismatch`);
+      if (values.length === 0 || (values.length === 1 && values[0] === '')) {
         continue;
       }
 
-      const row: Record<string, string> = {};
-      normalizedHeaders.forEach((header, index) => {
-        row[header] = values[index];
-      });
+      const getValue = (colName: string) => values[colIndex[colName.toLowerCase()]] || '';
 
-      // Validate row data
-      if (!row.customername) {
-        errors.push(`Row ${i + 1}: Customer name is required`);
+      // Validate pincode
+      const pincode = getValue('Pincode');
+      if (!/^\d{6}$/.test(pincode)) {
+        errors.push(`Row ${i + 1}: Invalid pincode "${pincode}" - must be 6 digits`);
         continue;
       }
-      if (!row.customerphone) {
-        errors.push(`Row ${i + 1}: Customer phone is required`);
-        continue;
-      }
-      if (!row.pincode || !/^\d{6}$/.test(row.pincode)) {
-        errors.push(`Row ${i + 1}: Valid 6-digit pincode is required`);
-        continue;
-      }
-      if (!row.orderamount || isNaN(Number(row.orderamount))) {
-        errors.push(`Row ${i + 1}: Valid order amount is required`);
+
+      // Validate assets count
+      const assetsCount = parseInt(getValue('Assets Count'), 10);
+      if (isNaN(assetsCount) || assetsCount < 0) {
+        errors.push(`Row ${i + 1}: Invalid Assets Count`);
         continue;
       }
 
       data.push({
-        customerName: row.customername,
-        customerPhone: row.customerphone,
-        customerAddress: row.customeraddress || '',
-        pincode: row.pincode,
-        orderAmount: Number(row.orderamount),
+        stateName: getValue('State Name'),
+        branchName: getValue('BRANCH NAME'),
+        branchCategory: getValue('branch catg.'),
+        branchCode: getValue('Branch code'),
+        address: getValue('Complete Address'),
+        pincode: pincode,
+        contactName: getValue('Branch Contact Name'),
+        contactPhone: getValue('Branch Telephone Number'),
+        assetsCount: assetsCount,
+        supportType: getValue('Support Type').toLowerCase(),
+        assetType: getValue('Asset Type'),
       });
     }
 
@@ -170,7 +163,7 @@ const CSVUploadDialog = ({ open, onOpenChange, uploadType }: CSVUploadDialogProp
         projectId: selectedProject,
       }));
 
-      addCalls(callsToAdd);
+      addCalls(callsToAdd, selectedProject);
 
       toast({
         title: 'Upload Successful',
@@ -287,7 +280,7 @@ const CSVUploadDialog = ({ open, onOpenChange, uploadType }: CSVUploadDialogProp
           <div className="bg-muted/50 rounded-lg p-3 text-sm">
             <p className="font-medium text-foreground mb-1">Required CSV Columns:</p>
             <p className="text-muted-foreground text-xs">
-              customerName, customerPhone, customerAddress, pincode, orderAmount
+              State Name, BRANCH NAME, branch catg., Branch code, Complete Address, Pincode, Branch Contact Name, Branch Telephone Number, Assets Count, Support Type, Asset Type
             </p>
           </div>
 

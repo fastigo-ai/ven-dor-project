@@ -121,7 +121,7 @@ const AdminPanel = () => {
   const getVendorStats = (vendorId: string) => {
     const vendorProjects = projects.filter(p => p.vendorId === vendorId);
     const vendorCalls = calls.filter(c => vendorProjects.some(p => p.id === c.projectId));
-    const totalRevenue = vendorCalls.reduce((sum, call) => sum + call.orderAmount, 0);
+    const totalRevenue = vendorCalls.reduce((sum, call) => sum + call.assetsCount * 100, 0);
     return {
       projectCount: vendorProjects.length,
       callCount: vendorCalls.length,
@@ -347,13 +347,13 @@ const AdminPanel = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {allCalls.slice(0, 20).map((call) => (
-                    <TableRow key={call.id}>
-                      <TableCell className="font-medium">{call.vendor?.companyName || 'N/A'}</TableCell>
-                      <TableCell>{call.customerName}</TableCell>
-                      <TableCell>{call.project?.name || 'N/A'}</TableCell>
-                      <TableCell className="text-right font-mono">₹{call.orderAmount}</TableCell>
-                      <TableCell>
+                    {allCalls.slice(0, 20).map((call) => (
+                      <TableRow key={call.id}>
+                        <TableCell className="font-medium">{call.vendor?.companyName || 'N/A'}</TableCell>
+                        <TableCell>{call.branchName}</TableCell>
+                        <TableCell>{call.project?.name || 'N/A'}</TableCell>
+                        <TableCell className="text-right font-mono">{call.assetsCount} assets</TableCell>
+                        <TableCell>
                         <Badge variant="outline" className={cn(
                           call.status === 'completed' && 'bg-success/10 text-success',
                           call.status === 'pending' && 'bg-warning/10 text-warning',

@@ -26,17 +26,21 @@ interface EditProjectDialogProps {
 }
 
 const supportTypes: SupportType[] = [
-  'Breakfix',
-  'PM Activity',
-  'On Call Support',
-  'Server Call',
-  'Desktop Installation',
+  'pm activity',
+  'breakfix',
+  'on call',
 ];
+
+const supportTypeLabels: Record<SupportType, string> = {
+  'pm activity': 'PM Activity',
+  'breakfix': 'Breakfix',
+  'on call': 'On Call Support',
+};
 
 const EditProjectDialog = ({ open, onOpenChange, project }: EditProjectDialogProps) => {
   const { updateProject } = useVendor();
   const [projectName, setProjectName] = useState('');
-  const [supportType, setSupportType] = useState<SupportType>('Breakfix');
+  const [supportType, setSupportType] = useState<SupportType>('breakfix');
 
   useEffect(() => {
     if (project) {
@@ -99,7 +103,7 @@ const EditProjectDialog = ({ open, onOpenChange, project }: EditProjectDialogPro
               <SelectContent>
                 {supportTypes.map((type) => (
                   <SelectItem key={type} value={type}>
-                    {type}
+                    {supportTypeLabels[type]}
                   </SelectItem>
                 ))}
               </SelectContent>

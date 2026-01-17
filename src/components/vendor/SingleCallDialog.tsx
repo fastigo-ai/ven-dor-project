@@ -28,14 +28,24 @@ interface SingleCallDialogProps {
 }
 
 interface ParsedCall {
-  customerName: string;
-  customerPhone: string;
-  customerAddress: string;
+  stateName: string;
+  branchName: string;
+  branchCategory: string;
+  branchCode: string;
+  address: string;
   pincode: string;
-  orderAmount: number;
+  contactName: string;
+  contactPhone: string;
+  assetsCount: number;
+  supportType: string;
+  assetType: string;
 }
 
-const requiredColumns = ['customerName', 'customerPhone', 'customerAddress', 'pincode', 'orderAmount'];
+const REQUIRED_COLUMNS = [
+  "State Name", "BRANCH NAME", "branch catg.", "Branch code", "Complete Address",
+  "Pincode", "Branch Contact Name", "Branch Telephone Number", "Assets Count",
+  "Support Type", "Asset Type"
+];
 
 const SingleCallDialog = ({ open, onOpenChange }: SingleCallDialogProps) => {
   const { currentVendor, projects, addCalls } = useVendor();
@@ -61,31 +71,12 @@ const SingleCallDialog = ({ open, onOpenChange }: SingleCallDialogProps) => {
       return { data, errors };
     }
 
-    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
-    
-    const headerMap: Record<string, string> = {
-      'customer name': 'customername',
-      'customer_name': 'customername',
-      'name': 'customername',
-      'customer phone': 'customerphone',
-      'customer_phone': 'customerphone',
-      'phone': 'customerphone',
-      'mobile': 'customerphone',
-      'customer address': 'customeraddress',
-      'customer_address': 'customeraddress',
-      'address': 'customeraddress',
-      'pin code': 'pincode',
-      'pin_code': 'pincode',
-      'zip': 'pincode',
-      'order amount': 'orderamount',
-      'order_amount': 'orderamount',
-      'amount': 'orderamount',
-    };
+    const headers = lines[0].split(',').map((h) => h.trim());
+    const headerLower = headers.map(h => h.toLowerCase());
 
-    const normalizedHeaders = headers.map((h) => headerMap[h] || h.replace(/[^a-z]/g, ''));
-
-    const missingColumns = requiredColumns.filter(
-      (col) => !normalizedHeaders.includes(col.toLowerCase())
+    // Check required columns
+    const missingColumns = REQUIRED_COLUMNS.filter(
+      col => !headerLower.includes(col.toLowerCase())
     );
 
     if (missingColumns.length > 0) {
@@ -93,42 +84,48 @@ const SingleCallDialog = ({ open, onOpenChange }: SingleCallDialogProps) => {
       return { data, errors };
     }
 
+    // Build column index map
+    const colIndex: Record<string, number> = {};
+    headers.forEach((h, idx) => {
+      colIndex[h.toLowerCase()] = idx;
+    });
+
     // For single call, only take the first data row
     const values = lines[1].split(',').map((v) => v.trim());
     
-    if (values.length !== headers.length) {
+    if (values.length < headers.length) {
       errors.push('Row 2: Column count mismatch');
       return { data, errors };
     }
 
-    const row: Record<string, string> = {};
-    normalizedHeaders.forEach((header, index) => {
-      row[header] = values[index];
-    });
+    const getValue = (colName: string) => values[colIndex[colName.toLowerCase()]] || '';
 
-    if (!row.customername) {
-      errors.push('Customer name is required');
-      return { data, errors };
-    }
-    if (!row.customerphone) {
-      errors.push('Customer phone is required');
-      return { data, errors };
-    }
-    if (!row.pincode || !/^\d{6}$/.test(row.pincode)) {
+    // Validate pincode
+    const pincode = getValue('Pincode');
+    if (!/^\d{6}$/.test(pincode)) {
       errors.push('Valid 6-digit pincode is required');
       return { data, errors };
     }
-    if (!row.orderamount || isNaN(Number(row.orderamount))) {
-      errors.push('Valid order amount is required');
+
+    // Validate assets count
+    const assetsCount = parseInt(getValue('Assets Count'), 10);
+    if (isNaN(assetsCount) || assetsCount < 0) {
+      errors.push('Valid Assets Count is required');
       return { data, errors };
     }
 
     data.push({
-      customerName: row.customername,
-      customerPhone: row.customerphone,
-      customerAddress: row.customeraddress || '',
-      pincode: row.pincode,
-      orderAmount: Number(row.orderamount),
+      stateName: getValue('State Name'),
+      branchName: getValue('BRANCH NAME'),
+      branchCategory: getValue('branch catg.'),
+      branchCode: getValue('Branch code'),
+      address: getValue('Complete Address'),
+      pincode: pincode,
+      contactName: getValue('Branch Contact Name'),
+      contactPhone: getValue('Branch Telephone Number'),
+      assetsCount: assetsCount,
+      supportType: getValue('Support Type').toLowerCase(),
+      assetType: getValue('Asset Type'),
     });
 
     return { data, errors };
@@ -199,7 +196,7 @@ const SingleCallDialog = ({ open, onOpenChange }: SingleCallDialogProps) => {
         projectId: selectedProject,
       }));
 
-      addCalls(callsToAdd);
+      addCalls(callsToAdd, selectedProject);
 
       toast({
         title: 'Call Added Successfully',
@@ -316,11 +313,17 @@ const SingleCallDialog = ({ open, onOpenChange }: SingleCallDialogProps) => {
             <div className="bg-muted/50 rounded-lg p-4 space-y-2">
               <p className="font-medium text-foreground text-sm">Required CSV Columns:</p>
               <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                <div>• Customer Name</div>
-                <div>• Customer Phone</div>
-                <div>• Customer Address</div>
+                <div>• State Name</div>
+                <div>• BRANCH NAME</div>
+                <div>• branch catg.</div>
+                <div>• Branch code</div>
+                <div>• Complete Address</div>
                 <div>• Pincode (6-digit)</div>
-                <div>• Order Amount (₹)</div>
+                <div>• Branch Contact Name</div>
+                <div>• Branch Telephone Number</div>
+                <div>• Assets Count</div>
+                <div>• Support Type</div>
+                <div>• Asset Type</div>
               </div>
             </div>
 

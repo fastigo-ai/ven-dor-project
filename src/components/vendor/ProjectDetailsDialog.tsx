@@ -66,6 +66,12 @@ const callStatusIcons = {
   cancelled: AlertCircle,
 };
 
+const supportTypeLabels: Record<string, string> = {
+  'pm activity': 'PM Activity',
+  'breakfix': 'Breakfix',
+  'on call': 'On Call Support',
+};
+
 const ProjectDetailsDialog = ({
   open,
   onOpenChange,
@@ -94,7 +100,7 @@ const ProjectDetailsDialog = ({
       deleteCall(callToDelete.id);
       toast({
         title: 'Call Deleted',
-        description: `Call record for "${callToDelete.customerName}" has been deleted.`,
+        description: `Call record for "${callToDelete.branchName}" has been deleted.`,
       });
       setCallToDelete(null);
     }
@@ -142,7 +148,7 @@ const ProjectDetailsDialog = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground">Support Type</p>
-                    <p className="font-medium">{project.supportType}</p>
+                    <p className="font-medium">{supportTypeLabels[project.supportType] || project.supportType}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Status</p>
@@ -236,7 +242,7 @@ const ProjectDetailsDialog = ({
                           <div className="flex items-start justify-between mb-2">
                             <div className="flex items-center gap-2">
                               <User className="h-4 w-4 text-muted-foreground" />
-                              <span className="font-medium text-sm">{call.customerName}</span>
+                              <span className="font-medium text-sm">{call.branchName}</span>
                             </div>
                             <div className="flex items-center gap-2">
                               <Badge
@@ -259,16 +265,16 @@ const ProjectDetailsDialog = ({
                           <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                             <div className="flex items-center gap-1">
                               <Phone className="h-3 w-3" />
-                              {call.customerPhone}
+                              {call.contactPhone}
                             </div>
                             <div className="flex items-center gap-1">
-                              <IndianRupee className="h-3 w-3" />
-                              ₹{call.orderAmount.toLocaleString()}
+                              <User className="h-3 w-3" />
+                              {call.contactName}
                             </div>
                           </div>
                           <div className="flex items-start gap-1 mt-1 text-xs text-muted-foreground">
                             <MapPin className="h-3 w-3 mt-0.5 shrink-0" />
-                            <span className="line-clamp-1">{call.customerAddress} - {call.pincode}</span>
+                            <span className="line-clamp-1">{call.address} - {call.pincode}</span>
                           </div>
                         </div>
                       );
@@ -306,7 +312,7 @@ const ProjectDetailsDialog = ({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Call Record</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete the call record for "{callToDelete?.customerName}"? This action cannot be undone.
+              Are you sure you want to delete the call record for "{callToDelete?.branchName}"? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

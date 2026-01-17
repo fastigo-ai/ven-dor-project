@@ -86,7 +86,7 @@ const VendorDashboard = () => {
     },
     {
       title: 'Total Amount',
-      value: `₹${(vendorCalls.reduce((sum, c) => sum + c.orderAmount, 0) / 1000).toFixed(1)}K`,
+      value: `₹${(vendorCalls.reduce((sum, c) => sum + c.assetsCount * 100, 0) / 1000).toFixed(1)}K`,
       change: 'All projects',
       icon: IndianRupee,
       color: 'text-accent',

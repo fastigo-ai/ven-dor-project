@@ -18,12 +18,24 @@ interface AddCallDialogProps {
 }
 
 interface ParsedCall {
-  customerName: string;
-  customerPhone: string;
-  customerAddress: string;
+  stateName: string;
+  branchName: string;
+  branchCategory: string;
+  branchCode: string;
+  address: string;
   pincode: string;
-  orderAmount: number;
+  contactName: string;
+  contactPhone: string;
+  assetsCount: number;
+  supportType: string;
+  assetType: string;
 }
+
+const REQUIRED_COLUMNS = [
+  "State Name", "BRANCH NAME", "branch catg.", "Branch code", "Complete Address",
+  "Pincode", "Branch Contact Name", "Branch Telephone Number", "Assets Count",
+  "Support Type", "Asset Type"
+];
 
 const AddCallDialog = ({ open, onOpenChange, projectId }: AddCallDialogProps) => {
   const { addSingleCall } = useVendor();
@@ -43,19 +55,46 @@ const AddCallDialog = ({ open, onOpenChange, projectId }: AddCallDialogProps) =>
     const lines = text.split('\n').filter(line => line.trim());
     if (lines.length < 2) return [];
 
+    const headers = lines[0].split(',').map(h => h.trim());
+    const headerLower = headers.map(h => h.toLowerCase());
+    
+    // Check required columns
+    const missing = REQUIRED_COLUMNS.filter(col => !headerLower.includes(col.toLowerCase()));
+    if (missing.length > 0) {
+      toast({
+        title: 'Invalid CSV Format',
+        description: `Missing columns: ${missing.join(', ')}`,
+        variant: 'destructive',
+      });
+      return [];
+    }
+
+    const colIndex: Record<string, number> = {};
+    headers.forEach((h, idx) => {
+      colIndex[h.toLowerCase()] = idx;
+    });
+
     const calls: ParsedCall[] = [];
     
     for (let i = 1; i < lines.length; i++) {
       const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-      if (values.length >= 1) {
-        calls.push({
-          customerName: values[0] || '',
-          customerPhone: values[1] || '',
-          customerAddress: values[2] || '',
-          pincode: values[3] || '',
-          orderAmount: Number(values[4]) || 0,
-        });
-      }
+      if (values.length < headers.length) continue;
+
+      const getValue = (colName: string) => values[colIndex[colName.toLowerCase()]] || '';
+
+      calls.push({
+        stateName: getValue('State Name'),
+        branchName: getValue('BRANCH NAME'),
+        branchCategory: getValue('branch catg.'),
+        branchCode: getValue('Branch code'),
+        address: getValue('Complete Address'),
+        pincode: getValue('Pincode'),
+        contactName: getValue('Branch Contact Name'),
+        contactPhone: getValue('Branch Telephone Number'),
+        assetsCount: parseInt(getValue('Assets Count'), 10) || 0,
+        supportType: getValue('Support Type').toLowerCase(),
+        assetType: getValue('Asset Type'),
+      });
     }
     
     return calls;
@@ -98,11 +137,17 @@ const AddCallDialog = ({ open, onOpenChange, projectId }: AddCallDialogProps) =>
     parsedCalls.forEach((call) => {
       addSingleCall({
         projectId,
-        customerName: call.customerName,
-        customerPhone: call.customerPhone,
-        customerAddress: call.customerAddress,
+        stateName: call.stateName,
+        branchName: call.branchName,
+        branchCategory: call.branchCategory,
+        branchCode: call.branchCode,
+        address: call.address,
         pincode: call.pincode,
-        orderAmount: call.orderAmount,
+        contactName: call.contactName,
+        contactPhone: call.contactPhone,
+        assetsCount: call.assetsCount,
+        supportType: call.supportType,
+        assetType: call.assetType,
       });
     });
 
@@ -152,7 +197,7 @@ const AddCallDialog = ({ open, onOpenChange, projectId }: AddCallDialogProps) =>
               <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
               <p className="text-sm font-medium">Click to upload CSV file</p>
               <p className="text-xs text-muted-foreground mt-1">
-                CSV format: Name, Phone, Address, Pincode, Amount
+                Required: State Name, Branch Name, Address, Pincode, etc.
               </p>
             </div>
           ) : (
@@ -180,19 +225,19 @@ const AddCallDialog = ({ open, onOpenChange, projectId }: AddCallDialogProps) =>
                   <table className="w-full text-xs">
                     <thead className="bg-muted sticky top-0">
                       <tr>
-                        <th className="text-left p-2">Name</th>
-                        <th className="text-left p-2">Phone</th>
+                        <th className="text-left p-2">Branch</th>
+                        <th className="text-left p-2">Contact</th>
                         <th className="text-left p-2">Pincode</th>
-                        <th className="text-right p-2">Amount</th>
+                        <th className="text-right p-2">Assets</th>
                       </tr>
                     </thead>
                     <tbody>
                       {parsedCalls.slice(0, 10).map((call, index) => (
                         <tr key={index} className="border-t">
-                          <td className="p-2 truncate max-w-[80px]">{call.customerName}</td>
-                          <td className="p-2">{call.customerPhone}</td>
+                          <td className="p-2 truncate max-w-[80px]">{call.branchName}</td>
+                          <td className="p-2">{call.contactName}</td>
                           <td className="p-2">{call.pincode}</td>
-                          <td className="p-2 text-right">₹{call.orderAmount}</td>
+                          <td className="p-2 text-right">{call.assetsCount}</td>
                         </tr>
                       ))}
                     </tbody>
