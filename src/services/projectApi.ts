@@ -151,3 +151,60 @@ export const getProjectCostSummary = async (projectId: string): Promise<ApiRespo
     return { error: 'Network error. Please try again.' };
   }
 };
+
+// Address validation response types
+export interface ServiceableLocation {
+  call_id: string;
+  pincode: string;
+  asset_type: string;
+  support_type: string;
+}
+
+export interface NonServiceableLocation {
+  call_id: string;
+  pincode: string;
+  asset_type: string;
+  support_type: string;
+  reason: string;
+}
+
+export interface AddressValidationResponse {
+  summary: {
+    service_available: number;
+    service_not_available: number;
+  };
+  non_serviceable_locations: NonServiceableLocation[];
+  'Service available locations': ServiceableLocation[];
+}
+
+// Validate project addresses
+export const validateProjectAddresses = async (projectId: string): Promise<ApiResponse<AddressValidationResponse>> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      return { error: 'Authentication required. Please login again.' };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/address-validation`, {
+      method: 'GET',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 401) {
+        removeAuthToken();
+        return { error: 'Session expired. Please login again.' };
+      }
+      return { error: error.detail || 'Failed to validate addresses' };
+    }
+    
+    const data = await response.json();
+    return { data };
+  } catch (error) {
+    return { error: 'Network error. Please try again.' };
+  }
+};
