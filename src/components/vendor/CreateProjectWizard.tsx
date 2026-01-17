@@ -757,26 +757,31 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
           {/* Step 3: Address Validation */}
           {currentStep === 3 && (
             <div className="space-y-4 py-4">
+              {/* Summary Cards */}
               <div className="grid grid-cols-2 gap-4">
-                <Card className="bg-green-500/5 border-green-500/20">
-                  <CardContent className="pt-4 text-center">
-                    <CheckCircle className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                    <p className="text-2xl font-bold text-green-600">{serviceableLocations.length}</p>
-                    <p className="text-sm text-muted-foreground">Service Available</p>
-                  </CardContent>
-                </Card>
-                <Card className="bg-destructive/5 border-destructive/20">
-                  <CardContent className="pt-4 text-center">
-                    <XCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
-                    <p className="text-2xl font-bold text-destructive">{nonServiceableLocations.length}</p>
-                    <p className="text-sm text-muted-foreground">Service Not Available</p>
-                  </CardContent>
-                </Card>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
+                  <div className="flex justify-center mb-2">
+                    <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                      <CheckCircle className="h-6 w-6 text-green-600" />
+                    </div>
+                  </div>
+                  <p className="text-3xl font-bold text-green-600">{serviceableLocations.length}</p>
+                  <p className="text-sm text-muted-foreground">Service Available</p>
+                </div>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+                  <div className="flex justify-center mb-2">
+                    <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                      <XCircle className="h-6 w-6 text-red-500" />
+                    </div>
+                  </div>
+                  <p className="text-3xl font-bold text-red-500">{nonServiceableLocations.length}</p>
+                  <p className="text-sm text-muted-foreground">Service Not Available</p>
+                </div>
               </div>
 
               {/* Serviceable Locations */}
               {serviceableLocations.length > 0 && (
-                <Card className="border-green-500/20">
+                <Card className="border-muted">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base flex items-center gap-2 text-green-600">
                       <CheckCircle className="h-4 w-4" />
@@ -784,14 +789,16 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                    <div className="space-y-3 max-h-48 overflow-y-auto">
                       {serviceableLocations.map((loc, idx) => (
-                        <div key={idx} className="bg-green-500/5 rounded-lg p-3 flex justify-between items-center">
+                        <div key={idx} className="flex justify-between items-center py-2 border-b border-muted last:border-0">
                           <div>
-                            <p className="font-medium text-sm">{loc.branchName}</p>
+                            <p className="font-medium text-sm text-foreground">{loc.branchName}</p>
                             <p className="text-xs text-muted-foreground">{loc.address}</p>
                           </div>
-                          <Badge className="bg-green-500/10 text-green-600">{loc.pincode}</Badge>
+                          <span className="px-3 py-1 text-sm font-medium text-primary border border-primary rounded-full">
+                            {loc.pincode}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -801,22 +808,25 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
 
               {/* Non-Serviceable Locations */}
               {nonServiceableLocations.length > 0 && (
-                <Card className="border-destructive/20">
+                <Card className="border-muted">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2 text-destructive">
-                      <AlertTriangle className="h-4 w-4" />
+                    <CardTitle className="text-base flex items-center gap-2 text-red-500">
+                      <XCircle className="h-4 w-4" />
                       Non-Serviceable Locations
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                    <div className="space-y-3 max-h-48 overflow-y-auto">
                       {nonServiceableLocations.map((loc, idx) => (
-                        <div key={idx} className="bg-destructive/5 rounded-lg p-3">
-                          <div className="flex justify-between items-start mb-1">
-                            <p className="font-medium text-sm">{loc.branchName}</p>
-                            <Badge variant="destructive">{loc.pincode}</Badge>
+                        <div key={idx} className="flex justify-between items-start py-2 border-b border-muted last:border-0">
+                          <div>
+                            <p className="font-medium text-sm text-foreground">{loc.branchName}</p>
+                            <p className="text-xs text-muted-foreground">{loc.address}</p>
+                            <p className="text-xs text-red-500 mt-1">{loc.reason}</p>
                           </div>
-                          <p className="text-xs text-destructive">{loc.reason}</p>
+                          <span className="px-3 py-1 text-sm font-medium text-red-500 border border-red-300 rounded-full">
+                            {loc.pincode}
+                          </span>
                         </div>
                       ))}
                     </div>
