@@ -174,6 +174,7 @@ export interface AddressValidationResponse {
     service_not_available: number;
   };
   non_serviceable_locations: NonServiceableLocation[];
+  // Backend uses "Service available locations" key (with space)
   'Service available locations': ServiceableLocation[];
 }
 
