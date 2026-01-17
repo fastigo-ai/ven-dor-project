@@ -1,15 +1,21 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-export type SupportType = 'Breakfix' | 'PM Activity' | 'On Call Support' | 'Server Call' | 'Desktop Installation';
+export type SupportType = 'pm activity' | 'breakfix' | 'on call';
 
 export interface CallData {
   id: string;
   projectId: string;
-  customerName: string;
-  customerPhone: string;
-  customerAddress: string;
+  stateName: string;
+  branchName: string;
+  branchCategory: string;
+  branchCode: string;
+  address: string;
   pincode: string;
-  orderAmount: number;
+  contactName: string;
+  contactPhone: string;
+  assetsCount: number;
+  supportType: string;
+  assetType: string;
   status: 'pending' | 'assigned' | 'completed' | 'cancelled';
   createdAt: Date;
 }
@@ -19,6 +25,8 @@ export interface ProjectData {
   vendorId: string;
   name: string;
   supportType: SupportType;
+  l1SupportName?: string;
+  l1SupportNumber?: string;
   createdAt: Date;
   status: 'active' | 'completed' | 'on-hold';
   totalCalls: number;
@@ -65,7 +73,7 @@ interface VendorContextType {
   addProject: (project: Omit<ProjectData, 'id' | 'createdAt' | 'totalCalls' | 'completedCalls' | 'totalAmount'>) => ProjectData;
   updateProject: (id: string, updates: Partial<ProjectData>) => void;
   calls: CallData[];
-  addCalls: (calls: Omit<CallData, 'id' | 'createdAt' | 'status'>[]) => void;
+  addCalls: (calls: Omit<CallData, 'id' | 'createdAt' | 'status'>[], projectId: string) => void;
   addSingleCall: (call: Omit<CallData, 'id' | 'createdAt' | 'status'>) => void;
   deleteCall: (callId: string) => void;
   rateCards: RateCard[];
@@ -95,7 +103,9 @@ const initialProjects: ProjectData[] = [
     id: 'proj-1',
     vendorId: '2',
     name: 'Mumbai Metro Deliveries',
-    supportType: 'Breakfix',
+    supportType: 'breakfix',
+    l1SupportName: 'Amit Kumar',
+    l1SupportNumber: '9876543210',
     createdAt: new Date('2024-01-20'),
     status: 'active',
     totalCalls: 45,
@@ -106,7 +116,9 @@ const initialProjects: ProjectData[] = [
     id: 'proj-2',
     vendorId: '2',
     name: 'Bangalore Express',
-    supportType: 'On Call Support',
+    supportType: 'on call',
+    l1SupportName: 'Priya Sharma',
+    l1SupportNumber: '9876543211',
     createdAt: new Date('2024-01-25'),
     status: 'active',
     totalCalls: 28,
@@ -117,7 +129,9 @@ const initialProjects: ProjectData[] = [
     id: 'proj-3',
     vendorId: '2',
     name: 'Delhi NCR Support',
-    supportType: 'PM Activity',
+    supportType: 'pm activity',
+    l1SupportName: 'Rahul Singh',
+    l1SupportNumber: '9876543212',
     createdAt: new Date('2024-01-28'),
     status: 'on-hold',
     totalCalls: 12,
@@ -130,33 +144,51 @@ const initialCalls: CallData[] = [
   {
     id: 'call-1',
     projectId: 'proj-1',
-    customerName: 'Amit Shah',
-    customerPhone: '+91 98765 11111',
-    customerAddress: '123 MG Road, Andheri West',
+    stateName: 'Maharashtra',
+    branchName: 'Andheri West Branch',
+    branchCategory: 'Urban',
+    branchCode: 'MH001',
+    address: '123 MG Road, Andheri West',
     pincode: '400058',
-    orderAmount: 2500,
+    contactName: 'Amit Shah',
+    contactPhone: '9876511111',
+    assetsCount: 5,
+    supportType: 'breakfix',
+    assetType: 'Laptop',
     status: 'completed',
     createdAt: new Date('2024-01-21'),
   },
   {
     id: 'call-2',
     projectId: 'proj-1',
-    customerName: 'Priya Patel',
-    customerPhone: '+91 98765 22222',
-    customerAddress: '45 Link Road, Bandra',
+    stateName: 'Maharashtra',
+    branchName: 'Bandra Branch',
+    branchCategory: 'Urban',
+    branchCode: 'MH002',
+    address: '45 Link Road, Bandra',
     pincode: '400050',
-    orderAmount: 3200,
+    contactName: 'Priya Patel',
+    contactPhone: '9876522222',
+    assetsCount: 3,
+    supportType: 'breakfix',
+    assetType: 'Printer',
     status: 'assigned',
     createdAt: new Date('2024-01-22'),
   },
   {
     id: 'call-3',
     projectId: 'proj-2',
-    customerName: 'Rahul Sharma',
-    customerPhone: '+91 98765 33333',
-    customerAddress: '78 Indiranagar, Bangalore',
+    stateName: 'Karnataka',
+    branchName: 'Indiranagar Branch',
+    branchCategory: 'Urban',
+    branchCode: 'KA001',
+    address: '78 Indiranagar, Bangalore',
     pincode: '560038',
-    orderAmount: 4500,
+    contactName: 'Rahul Sharma',
+    contactPhone: '9876533333',
+    assetsCount: 2,
+    supportType: 'on call',
+    assetType: 'Desktop',
     status: 'pending',
     createdAt: new Date('2024-01-26'),
   },
@@ -266,37 +298,25 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
-  const addCalls = (newCalls: Omit<CallData, 'id' | 'createdAt' | 'status'>[]) => {
+  const addCalls = (newCalls: Omit<CallData, 'id' | 'createdAt' | 'status'>[], projectId: string) => {
     const callsWithIds: CallData[] = newCalls.map((call, index) => ({
       ...call,
+      projectId,
       id: `call-${Date.now()}-${index}`,
       createdAt: new Date(),
       status: 'pending' as const,
     }));
     setCalls((prev) => [...prev, ...callsWithIds]);
 
-    // Update project stats using functional update to avoid stale state
+    // Update project stats
     setProjects((prevProjects) => {
-      const projectUpdates: Record<string, { totalCalls: number; totalAmount: number }> = {};
-      
-      callsWithIds.forEach((call) => {
-        if (!projectUpdates[call.projectId]) {
-          const existingProject = prevProjects.find((p) => p.id === call.projectId);
-          projectUpdates[call.projectId] = {
-            totalCalls: existingProject?.totalCalls || 0,
-            totalAmount: existingProject?.totalAmount || 0,
-          };
-        }
-        projectUpdates[call.projectId].totalCalls += 1;
-        projectUpdates[call.projectId].totalAmount += call.orderAmount;
-      });
-
       return prevProjects.map((project) => {
-        if (projectUpdates[project.id]) {
+        if (project.id === projectId) {
+          const totalAssets = callsWithIds.reduce((sum, c) => sum + c.assetsCount, 0);
           return {
             ...project,
-            totalCalls: projectUpdates[project.id].totalCalls,
-            totalAmount: projectUpdates[project.id].totalAmount,
+            totalCalls: project.totalCalls + callsWithIds.length,
+            totalAmount: project.totalAmount + totalAssets * 100, // Placeholder rate
           };
         }
         return project;
@@ -328,7 +348,7 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
           return {
             ...project,
             totalCalls: project.totalCalls + 1,
-            totalAmount: project.totalAmount + callData.orderAmount,
+            totalAmount: project.totalAmount + (callData.assetsCount * 100),
           };
         }
         return project;
@@ -349,7 +369,7 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
           return {
             ...project,
             totalCalls: Math.max(0, project.totalCalls - 1),
-            totalAmount: Math.max(0, project.totalAmount - callToDelete.orderAmount),
+            totalAmount: Math.max(0, project.totalAmount - (callToDelete.assetsCount * 100)),
           };
         }
         return project;
