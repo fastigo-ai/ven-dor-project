@@ -2,14 +2,63 @@
 // All routes are under /admin/* prefix
 // Requires admin role authentication
 
-import { getAuthToken, removeAuthToken } from './authApi';
-
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const ADMIN_TOKEN_KEY = 'admin_token';
+
+// Admin token management
+export const getAdminToken = (): string | null => {
+  return localStorage.getItem(ADMIN_TOKEN_KEY);
+};
+
+export const setAdminToken = (token: string): void => {
+  localStorage.setItem(ADMIN_TOKEN_KEY, token);
+};
+
+export const clearAdminToken = (): void => {
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
+};
+
+export const isAdminAuthenticated = (): boolean => {
+  return !!getAdminToken();
+};
 
 interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
 }
+
+interface AdminLoginResponse {
+  message: string;
+  access_token: string;
+  token_type: string;
+}
+
+// Admin Login
+export const adminLogin = async (
+  email: string,
+  password: string
+): Promise<ApiResponse<AdminLoginResponse>> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { error: data.detail || 'Invalid credentials' };
+    }
+
+    return { data };
+  } catch (error) {
+    console.error('Admin login error:', error);
+    return { error: 'Network error. Please try again.' };
+  }
+};
 
 // ==============================
 // RATE CARDS MANAGEMENT
@@ -40,7 +89,7 @@ export interface RateCardUpdate {
 // GET /admin/rate-cards - List all rate cards
 export const listRateCards = async (): Promise<ApiResponse<RateCard[]>> => {
   try {
-    const token = getAuthToken();
+    const token = getAdminToken();
     if (!token) {
       return { error: 'Authentication required. Please login again.' };
     }
@@ -56,7 +105,7 @@ export const listRateCards = async (): Promise<ApiResponse<RateCard[]>> => {
     if (!response.ok) {
       const error = await response.json();
       if (response.status === 401) {
-        removeAuthToken();
+        clearAdminToken();
         return { error: 'Session expired. Please login again.' };
       }
       if (response.status === 403) {
@@ -78,7 +127,7 @@ export const listRateCards = async (): Promise<ApiResponse<RateCard[]>> => {
 // POST /admin/rate-card - Add new rate card
 export const addRateCard = async (payload: RateCardCreate): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const token = getAuthToken();
+    const token = getAdminToken();
     if (!token) {
       return { error: 'Authentication required. Please login again.' };
     }
@@ -95,7 +144,7 @@ export const addRateCard = async (payload: RateCardCreate): Promise<ApiResponse<
     if (!response.ok) {
       const error = await response.json();
       if (response.status === 401) {
-        removeAuthToken();
+        clearAdminToken();
         return { error: 'Session expired. Please login again.' };
       }
       if (response.status === 403) {
@@ -117,7 +166,7 @@ export const addRateCard = async (payload: RateCardCreate): Promise<ApiResponse<
 // PUT /admin/rate-card/{support_type} - Update rate card
 export const updateRateCard = async (supportType: string, payload: RateCardUpdate): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const token = getAuthToken();
+    const token = getAdminToken();
     if (!token) {
       return { error: 'Authentication required. Please login again.' };
     }
@@ -134,7 +183,7 @@ export const updateRateCard = async (supportType: string, payload: RateCardUpdat
     if (!response.ok) {
       const error = await response.json();
       if (response.status === 401) {
-        removeAuthToken();
+        clearAdminToken();
         return { error: 'Session expired. Please login again.' };
       }
       if (response.status === 403) {
@@ -172,7 +221,7 @@ export interface Vendor {
 // GET /admin/vendors - List vendors with optional status filter
 export const listVendors = async (status?: string): Promise<ApiResponse<Vendor[]>> => {
   try {
-    const token = getAuthToken();
+    const token = getAdminToken();
     if (!token) {
       return { error: 'Authentication required. Please login again.' };
     }
@@ -192,7 +241,7 @@ export const listVendors = async (status?: string): Promise<ApiResponse<Vendor[]
     if (!response.ok) {
       const error = await response.json();
       if (response.status === 401) {
-        removeAuthToken();
+        clearAdminToken();
         return { error: 'Session expired. Please login again.' };
       }
       if (response.status === 403) {
@@ -214,7 +263,7 @@ export const listVendors = async (status?: string): Promise<ApiResponse<Vendor[]
 // POST /admin/vendors/{vendor_id}/approve - Approve vendor
 export const approveVendor = async (vendorId: string): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const token = getAuthToken();
+    const token = getAdminToken();
     if (!token) {
       return { error: 'Authentication required. Please login again.' };
     }
@@ -230,7 +279,7 @@ export const approveVendor = async (vendorId: string): Promise<ApiResponse<{ mes
     if (!response.ok) {
       const error = await response.json();
       if (response.status === 401) {
-        removeAuthToken();
+        clearAdminToken();
         return { error: 'Session expired. Please login again.' };
       }
       if (response.status === 403) {
@@ -252,7 +301,7 @@ export const approveVendor = async (vendorId: string): Promise<ApiResponse<{ mes
 // POST /admin/vendors/{vendor_id}/reject - Reject vendor (if endpoint exists)
 export const rejectVendor = async (vendorId: string, reason?: string): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const token = getAuthToken();
+    const token = getAdminToken();
     if (!token) {
       return { error: 'Authentication required. Please login again.' };
     }
@@ -269,7 +318,7 @@ export const rejectVendor = async (vendorId: string, reason?: string): Promise<A
     if (!response.ok) {
       const error = await response.json();
       if (response.status === 401) {
-        removeAuthToken();
+        clearAdminToken();
         return { error: 'Session expired. Please login again.' };
       }
       if (response.status === 403) {
@@ -291,7 +340,7 @@ export const rejectVendor = async (vendorId: string, reason?: string): Promise<A
 // POST /admin/vendors/{vendor_id}/block - Block vendor (if endpoint exists)
 export const blockVendor = async (vendorId: string): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const token = getAuthToken();
+    const token = getAdminToken();
     if (!token) {
       return { error: 'Authentication required. Please login again.' };
     }
@@ -307,7 +356,7 @@ export const blockVendor = async (vendorId: string): Promise<ApiResponse<{ messa
     if (!response.ok) {
       const error = await response.json();
       if (response.status === 401) {
-        removeAuthToken();
+        clearAdminToken();
         return { error: 'Session expired. Please login again.' };
       }
       if (response.status === 403) {
