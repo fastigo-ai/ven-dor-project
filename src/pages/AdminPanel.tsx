@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -44,6 +44,7 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
@@ -58,11 +59,21 @@ import {
   updateRateCard as updateRateCardApi,
   Vendor,
   RateCard,
+  isAdminAuthenticated,
+  clearAdminToken,
 } from '@/services/adminApi';
 
 const AdminPanel = () => {
+  const navigate = useNavigate();
   const { calls, projects } = useVendor();
   const { toast } = useToast();
+  
+  // Check authentication on mount
+  useEffect(() => {
+    if (!isAdminAuthenticated()) {
+      navigate('/admin/login');
+    }
+  }, [navigate]);
   
   // API data state
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -86,6 +97,12 @@ const AdminPanel = () => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [selectedProject, setSelectedProject] = useState<ProjectData | null>(null);
+
+  // Handle logout
+  const handleLogout = () => {
+    clearAdminToken();
+    navigate('/admin/login');
+  };
 
   // Fetch vendors from API
   const fetchVendors = async () => {
@@ -303,11 +320,17 @@ const AdminPanel = () => {
               Admin Panel
             </span>
           </div>
-          <Link to="/">
-            <Button variant="outline" size="sm">
-              Exit Admin
+          <div className="flex items-center gap-2">
+            <Link to="/">
+              <Button variant="outline" size="sm">
+                Exit Admin
+              </Button>
+            </Link>
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
             </Button>
-          </Link>
+          </div>
         </div>
       </header>
 

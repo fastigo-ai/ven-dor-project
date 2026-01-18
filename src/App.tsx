@@ -11,6 +11,7 @@ import PasswordStep from "./pages/register/PasswordStep";
 import CompanyStep from "./pages/register/CompanyStep";
 import PendingApproval from "./pages/PendingApproval";
 import AdminPanel from "./pages/AdminPanel";
+import AdminLogin from "./pages/AdminLogin";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import VendorDashboard from "./pages/VendorDashboard";
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/register/password" element={<PasswordStep />} />
             <Route path="/register/company" element={<CompanyStep />} />
             <Route path="/pending" element={<PendingApproval />} />
+            <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin" element={<AdminPanel />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
