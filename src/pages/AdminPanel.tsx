@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/table';
 import Logo from '@/components/Logo';
 import StatusBadge from '@/components/StatusBadge';
-import { useVendor, VendorData, RateCard, ProjectData } from '@/contexts/VendorContext';
+import { useVendor, ProjectData } from '@/contexts/VendorContext';
 import ProjectDetailsDialog from '@/components/vendor/ProjectDetailsDialog';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -37,87 +37,204 @@ import {
   Clock,
   ShieldCheck,
   IndianRupee,
-  FileSpreadsheet,
   Edit2,
   Ban,
   FolderKanban,
   PhoneCall,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  listVendors,
+  listRateCards,
+  approveVendor,
+  rejectVendor,
+  blockVendor,
+  updateRateCard as updateRateCardApi,
+  Vendor,
+  RateCard,
+} from '@/services/adminApi';
 
 const AdminPanel = () => {
-  const { vendors, updateVendorStatus, calls, projects, rateCards, updateRateCard } = useVendor();
+  const { calls, projects } = useVendor();
   const { toast } = useToast();
+  
+  // API data state
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [rateCards, setRateCards] = useState<RateCard[]>([]);
+  
+  // Loading states
+  const [vendorsLoading, setVendorsLoading] = useState(true);
+  const [rateCardsLoading, setRateCardsLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  
+  // Error states
+  const [vendorsError, setVendorsError] = useState<string | null>(null);
+  const [rateCardsError, setRateCardsError] = useState<string | null>(null);
+  
+  // UI state
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
-  const [selectedVendor, setSelectedVendor] = useState<VendorData | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'PENDING' | 'APPROVED' | 'REJECTED'>('all');
+  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [editingRate, setEditingRate] = useState<RateCard | null>(null);
-  const [rateForm, setRateForm] = useState({ baseRate: 0, perKmRate: 0, urgentMultiplier: 0 });
+  const [rateForm, setRateForm] = useState({ base_rate: 0, per_km_rate: 0, urgent_multiplier: 0 });
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [selectedProject, setSelectedProject] = useState<ProjectData | null>(null);
 
+  // Fetch vendors from API
+  const fetchVendors = async () => {
+    setVendorsLoading(true);
+    setVendorsError(null);
+    
+    const statusParam = statusFilter === 'all' ? undefined : statusFilter;
+    const result = await listVendors(statusParam);
+    
+    if (result.error) {
+      setVendorsError(result.error);
+      toast({ title: 'Error', description: result.error, variant: 'destructive' });
+    } else if (result.data) {
+      setVendors(result.data);
+    }
+    
+    setVendorsLoading(false);
+  };
+
+  // Fetch rate cards from API
+  const fetchRateCards = async () => {
+    setRateCardsLoading(true);
+    setRateCardsError(null);
+    
+    const result = await listRateCards();
+    
+    if (result.error) {
+      setRateCardsError(result.error);
+      toast({ title: 'Error', description: result.error, variant: 'destructive' });
+    } else if (result.data) {
+      setRateCards(result.data);
+    }
+    
+    setRateCardsLoading(false);
+  };
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchVendors();
+    fetchRateCards();
+  }, []);
+
+  // Refetch vendors when status filter changes
+  useEffect(() => {
+    fetchVendors();
+  }, [statusFilter]);
+
   const allCalls = calls.map((call) => {
     const project = projects.find((p) => p.id === call.projectId);
-    const vendor = vendors.find((v) => v.id === project?.vendorId);
+    const vendor = vendors.find((v) => v._id === project?.vendorId);
     return { ...call, project, vendor };
   });
 
   const handleRateEdit = (rate: RateCard) => {
     setEditingRate(rate);
-    setRateForm({ baseRate: rate.baseRate, perKmRate: rate.perKmRate, urgentMultiplier: rate.urgentMultiplier });
+    setRateForm({ 
+      base_rate: rate.base_rate, 
+      per_km_rate: rate.per_km_rate, 
+      urgent_multiplier: rate.urgent_multiplier 
+    });
   };
 
-  const handleRateSave = () => {
-    if (editingRate) {
-      updateRateCard(editingRate.id, rateForm);
-      toast({ title: 'Rate Updated', description: `${editingRate.serviceType} rates have been updated.` });
+  const handleRateSave = async () => {
+    if (!editingRate) return;
+    
+    setActionLoading(true);
+    const result = await updateRateCardApi(editingRate.support_type, rateForm);
+    
+    if (result.error) {
+      toast({ title: 'Error', description: result.error, variant: 'destructive' });
+    } else {
+      toast({ title: 'Rate Updated', description: `${editingRate.support_type} rates have been updated.` });
       setEditingRate(null);
+      fetchRateCards(); // Refresh rate cards
     }
+    
+    setActionLoading(false);
   };
 
   const filteredVendors = vendors.filter((vendor) => {
     const matchesSearch =
-      vendor.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vendor.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vendor.gstNumber.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || vendor.status === statusFilter;
-    return matchesSearch && matchesStatus;
+      vendor.company_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      vendor.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      vendor.gst_number?.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSearch;
   });
 
   const stats = {
     total: vendors.length,
-    pending: vendors.filter((v) => v.status === 'pending').length,
-    approved: vendors.filter((v) => v.status === 'approved').length,
-    rejected: vendors.filter((v) => v.status === 'rejected').length,
+    pending: vendors.filter((v) => v.status === 'PENDING').length,
+    approved: vendors.filter((v) => v.status === 'APPROVED').length,
+    rejected: vendors.filter((v) => v.status === 'REJECTED').length,
   };
 
-  const handleStatusUpdate = (id: string, status: 'approved' | 'rejected', reason?: string) => {
-    updateVendorStatus(id, status);
-    toast({
-      title: `Vendor ${status === 'approved' ? 'Approved' : 'Rejected'}`,
-      description: status === 'rejected' && reason 
-        ? `Rejected: ${reason}` 
-        : `The vendor has been ${status}`,
-    });
-    setSelectedVendor(null);
-    setRejectionReason('');
-    setShowRejectConfirm(false);
+  const handleApproveVendor = async (vendorId: string) => {
+    setActionLoading(true);
+    const result = await approveVendor(vendorId);
+    
+    if (result.error) {
+      toast({ title: 'Error', description: result.error, variant: 'destructive' });
+    } else {
+      toast({ title: 'Vendor Approved', description: 'The vendor has been approved successfully.' });
+      setSelectedVendor(null);
+      fetchVendors(); // Refresh vendors list
+    }
+    
+    setActionLoading(false);
   };
 
-  const handleBlockVendor = (id: string) => {
-    updateVendorStatus(id, 'rejected');
-    toast({
-      title: 'Vendor Blocked',
-      description: 'The vendor has been blocked and cannot access the portal.',
-      variant: 'destructive',
-    });
-    setSelectedVendor(null);
+  const handleRejectVendor = async (vendorId: string, reason?: string) => {
+    setActionLoading(true);
+    const result = await rejectVendor(vendorId, reason);
+    
+    if (result.error) {
+      toast({ title: 'Error', description: result.error, variant: 'destructive' });
+    } else {
+      toast({ 
+        title: 'Vendor Rejected', 
+        description: reason ? `Rejected: ${reason}` : 'The vendor has been rejected.',
+      });
+      setSelectedVendor(null);
+      setRejectionReason('');
+      setShowRejectConfirm(false);
+      fetchVendors(); // Refresh vendors list
+    }
+    
+    setActionLoading(false);
   };
 
-  // Get vendor stats
+  const handleBlockVendor = async (vendorId: string) => {
+    setActionLoading(true);
+    const result = await blockVendor(vendorId);
+    
+    if (result.error) {
+      toast({ title: 'Error', description: result.error, variant: 'destructive' });
+    } else {
+      toast({
+        title: 'Vendor Blocked',
+        description: 'The vendor has been blocked and cannot access the portal.',
+        variant: 'destructive',
+      });
+      setSelectedVendor(null);
+      fetchVendors(); // Refresh vendors list
+    }
+    
+    setActionLoading(false);
+  };
+
+  // Get vendor stats (using local projects/calls for now)
   const getVendorStats = (vendorId: string) => {
     const vendorProjects = projects.filter(p => p.vendorId === vendorId);
     const vendorCalls = calls.filter(c => vendorProjects.some(p => p.id === c.projectId));
@@ -132,10 +249,48 @@ const AdminPanel = () => {
 
   // All projects with vendor info
   const allProjects = projects.map(project => {
-    const vendor = vendors.find(v => v.id === project.vendorId);
+    const vendor = vendors.find(v => v._id === project.vendorId);
     const projectCalls = calls.filter(c => c.projectId === project.id);
     return { ...project, vendor, calls: projectCalls };
   });
+
+  // Loading skeleton component
+  const VendorSkeleton = () => (
+    <div className="bg-card rounded-xl p-5 shadow-card border border-border">
+      <div className="flex items-start gap-4">
+        <Skeleton className="w-12 h-12 rounded-lg" />
+        <div className="flex-1">
+          <Skeleton className="h-5 w-48 mb-2" />
+          <Skeleton className="h-4 w-32 mb-1" />
+          <Skeleton className="h-3 w-24" />
+        </div>
+        <Skeleton className="h-6 w-20 rounded-full" />
+      </div>
+    </div>
+  );
+
+  const RateCardSkeleton = () => (
+    <TableRow>
+      <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+      <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+      <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+      <TableCell><Skeleton className="h-5 w-12" /></TableCell>
+      <TableCell><Skeleton className="h-8 w-8 rounded" /></TableCell>
+    </TableRow>
+  );
+
+  // Error component
+  const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void }) => (
+    <div className="text-center py-12 bg-card rounded-xl border border-destructive/30">
+      <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
+      <p className="text-lg font-medium text-foreground mb-2">Failed to load data</p>
+      <p className="text-muted-foreground mb-4">{message}</p>
+      <Button variant="outline" onClick={onRetry}>
+        <RefreshCw className="w-4 h-4 mr-2" />
+        Retry
+      </Button>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -174,7 +329,11 @@ const AdminPanel = () => {
                 <Users className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <p className="text-2xl font-display font-bold text-foreground">{stats.total}</p>
+                {vendorsLoading ? (
+                  <Skeleton className="h-8 w-12 mb-1" />
+                ) : (
+                  <p className="text-2xl font-display font-bold text-foreground">{stats.total}</p>
+                )}
                 <p className="text-sm text-muted-foreground">Total Vendors</p>
               </div>
             </div>
@@ -185,7 +344,11 @@ const AdminPanel = () => {
                 <Clock className="w-5 h-5 text-warning" />
               </div>
               <div>
-                <p className="text-2xl font-display font-bold text-foreground">{stats.pending}</p>
+                {vendorsLoading ? (
+                  <Skeleton className="h-8 w-12 mb-1" />
+                ) : (
+                  <p className="text-2xl font-display font-bold text-foreground">{stats.pending}</p>
+                )}
                 <p className="text-sm text-muted-foreground">Pending</p>
               </div>
             </div>
@@ -196,7 +359,11 @@ const AdminPanel = () => {
                 <CheckCircle className="w-5 h-5 text-success" />
               </div>
               <div>
-                <p className="text-2xl font-display font-bold text-foreground">{stats.approved}</p>
+                {vendorsLoading ? (
+                  <Skeleton className="h-8 w-12 mb-1" />
+                ) : (
+                  <p className="text-2xl font-display font-bold text-foreground">{stats.approved}</p>
+                )}
                 <p className="text-sm text-muted-foreground">Approved</p>
               </div>
             </div>
@@ -207,7 +374,11 @@ const AdminPanel = () => {
                 <XCircle className="w-5 h-5 text-destructive" />
               </div>
               <div>
-                <p className="text-2xl font-display font-bold text-foreground">{stats.rejected}</p>
+                {vendorsLoading ? (
+                  <Skeleton className="h-8 w-12 mb-1" />
+                ) : (
+                  <p className="text-2xl font-display font-bold text-foreground">{stats.rejected}</p>
+                )}
                 <p className="text-sm text-muted-foreground">Rejected</p>
               </div>
             </div>
@@ -226,7 +397,7 @@ const AdminPanel = () => {
             />
           </div>
           <div className="flex gap-2">
-            {(['all', 'pending', 'approved', 'rejected'] as const).map((status) => (
+            {(['all', 'PENDING', 'APPROVED', 'REJECTED'] as const).map((status) => (
               <Button
                 key={status}
                 variant={statusFilter === status ? 'default' : 'outline'}
@@ -234,7 +405,7 @@ const AdminPanel = () => {
                 onClick={() => setStatusFilter(status)}
                 className="capitalize"
               >
-                {status}
+                {status.toLowerCase()}
               </Button>
             ))}
           </div>
@@ -250,43 +421,48 @@ const AdminPanel = () => {
           </TabsList>
 
           <TabsContent value="vendors">
-            {/* Existing vendor list content - moved here */}
-            <div className="space-y-4">
-              {filteredVendors.length === 0 ? (
-                <div className="text-center py-12 bg-card rounded-xl border border-border">
-                  <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-lg font-medium text-foreground">No vendors found</p>
-                  <p className="text-muted-foreground">Try adjusting your search or filters</p>
-                </div>
-              ) : (
-                filteredVendors.map((vendor) => (
+            {vendorsError ? (
+              <ErrorState message={vendorsError} onRetry={fetchVendors} />
+            ) : vendorsLoading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => <VendorSkeleton key={i} />)}
+              </div>
+            ) : filteredVendors.length === 0 ? (
+              <div className="text-center py-12 bg-card rounded-xl border border-border">
+                <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-lg font-medium text-foreground">No vendors found</p>
+                <p className="text-muted-foreground">Try adjusting your search or filters</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredVendors.map((vendor) => (
                   <div
-                    key={vendor.id}
+                    key={vendor._id}
                     className="bg-card rounded-xl p-5 shadow-card border border-border hover:border-primary/30 transition-colors cursor-pointer"
                     onClick={() => setSelectedVendor(vendor)}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div className="flex items-start gap-4">
                         <div className="w-12 h-12 rounded-lg gradient-primary flex items-center justify-center text-primary-foreground font-display font-bold text-lg">
-                          {vendor.companyName.charAt(0)}
+                          {vendor.company_name?.charAt(0) || 'V'}
                         </div>
                         <div>
-                          <h3 className="font-display font-semibold text-foreground">{vendor.companyName}</h3>
+                          <h3 className="font-display font-semibold text-foreground">{vendor.company_name}</h3>
                           <p className="text-sm text-muted-foreground">{vendor.email}</p>
-                          <p className="text-xs text-muted-foreground mt-1">GST: {vendor.gstNumber}</p>
+                          <p className="text-xs text-muted-foreground mt-1">GST: {vendor.gst_number}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <StatusBadge status={vendor.status} />
+                        <StatusBadge status={vendor.status?.toLowerCase() as any} />
                         <span className="text-xs text-muted-foreground hidden sm:block">
-                          {new Date(vendor.createdAt).toLocaleDateString()}
+                          {vendor.created_at ? new Date(vendor.created_at).toLocaleDateString() : 'N/A'}
                         </span>
                       </div>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="projects">
@@ -310,7 +486,7 @@ const AdminPanel = () => {
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => setSelectedProject(project)}
                     >
-                      <TableCell className="font-medium">{project.vendor?.companyName || 'N/A'}</TableCell>
+                      <TableCell className="font-medium">{project.vendor?.company_name || 'N/A'}</TableCell>
                       <TableCell>{project.name}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{project.supportType}</Badge>
@@ -349,7 +525,7 @@ const AdminPanel = () => {
                 <TableBody>
                     {allCalls.slice(0, 20).map((call) => (
                       <TableRow key={call.id}>
-                        <TableCell className="font-medium">{call.vendor?.companyName || 'N/A'}</TableCell>
+                        <TableCell className="font-medium">{call.vendor?.company_name || 'N/A'}</TableCell>
                         <TableCell>{call.branchName}</TableCell>
                         <TableCell>{call.project?.name || 'N/A'}</TableCell>
                         <TableCell className="text-right font-mono">{call.assetsCount} assets</TableCell>
@@ -370,34 +546,48 @@ const AdminPanel = () => {
           </TabsContent>
 
           <TabsContent value="rates">
-            <div className="bg-card rounded-xl border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Service Type</TableHead>
-                    <TableHead className="text-right">Base Rate</TableHead>
-                    <TableHead className="text-right">Per KM</TableHead>
-                    <TableHead className="text-right">Urgent (×)</TableHead>
-                    <TableHead className="text-center">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rateCards.map((card) => (
-                    <TableRow key={card.id}>
-                      <TableCell className="font-medium">{card.serviceType}</TableCell>
-                      <TableCell className="text-right font-mono">₹{card.baseRate}</TableCell>
-                      <TableCell className="text-right font-mono">₹{card.perKmRate}</TableCell>
-                      <TableCell className="text-right font-mono">{card.urgentMultiplier}×</TableCell>
-                      <TableCell className="text-center">
-                        <Button size="sm" variant="ghost" onClick={() => handleRateEdit(card)}>
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+            {rateCardsError ? (
+              <ErrorState message={rateCardsError} onRetry={fetchRateCards} />
+            ) : (
+              <div className="bg-card rounded-xl border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead>Support Type</TableHead>
+                      <TableHead className="text-right">Base Rate</TableHead>
+                      <TableHead className="text-right">Per KM</TableHead>
+                      <TableHead className="text-right">Urgent (×)</TableHead>
+                      <TableHead className="text-center">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {rateCardsLoading ? (
+                      [1, 2, 3].map((i) => <RateCardSkeleton key={i} />)
+                    ) : rateCards.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                          No rate cards found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      rateCards.map((card) => (
+                        <TableRow key={card._id || card.support_type}>
+                          <TableCell className="font-medium">{card.support_type}</TableCell>
+                          <TableCell className="text-right font-mono">₹{card.base_rate}</TableCell>
+                          <TableCell className="text-right font-mono">₹{card.per_km_rate}</TableCell>
+                          <TableCell className="text-right font-mono">{card.urgent_multiplier}×</TableCell>
+                          <TableCell className="text-center">
+                            <Button size="sm" variant="ghost" onClick={() => handleRateEdit(card)}>
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </main>
@@ -406,24 +596,29 @@ const AdminPanel = () => {
       <Dialog open={!!editingRate} onOpenChange={() => setEditingRate(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Rate: {editingRate?.serviceType}</DialogTitle>
+            <DialogTitle>Edit Rate: {editingRate?.support_type}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label>Base Rate (₹)</Label>
-              <Input type="number" value={rateForm.baseRate} onChange={(e) => setRateForm({ ...rateForm, baseRate: Number(e.target.value) })} />
+              <Input type="number" value={rateForm.base_rate} onChange={(e) => setRateForm({ ...rateForm, base_rate: Number(e.target.value) })} />
             </div>
             <div className="space-y-2">
               <Label>Per KM Rate (₹)</Label>
-              <Input type="number" value={rateForm.perKmRate} onChange={(e) => setRateForm({ ...rateForm, perKmRate: Number(e.target.value) })} />
+              <Input type="number" value={rateForm.per_km_rate} onChange={(e) => setRateForm({ ...rateForm, per_km_rate: Number(e.target.value) })} />
             </div>
             <div className="space-y-2">
               <Label>Urgent Multiplier</Label>
-              <Input type="number" step="0.1" value={rateForm.urgentMultiplier} onChange={(e) => setRateForm({ ...rateForm, urgentMultiplier: Number(e.target.value) })} />
+              <Input type="number" step="0.1" value={rateForm.urgent_multiplier} onChange={(e) => setRateForm({ ...rateForm, urgent_multiplier: Number(e.target.value) })} />
             </div>
             <div className="flex gap-3 pt-4">
-              <Button variant="outline" className="flex-1" onClick={() => setEditingRate(null)}>Cancel</Button>
-              <Button className="flex-1" onClick={handleRateSave}>Save Changes</Button>
+              <Button variant="outline" className="flex-1" onClick={() => setEditingRate(null)} disabled={actionLoading}>
+                Cancel
+              </Button>
+              <Button className="flex-1" onClick={handleRateSave} disabled={actionLoading}>
+                {actionLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Save Changes
+              </Button>
             </div>
           </div>
         </DialogContent>
@@ -437,14 +632,14 @@ const AdminPanel = () => {
               <DialogHeader>
                 <div className="flex items-center gap-3">
                   <div className="w-14 h-14 rounded-xl gradient-primary flex items-center justify-center text-primary-foreground font-display font-bold text-2xl">
-                    {selectedVendor.companyName.charAt(0)}
+                    {selectedVendor.company_name?.charAt(0) || 'V'}
                   </div>
                   <div>
                     <DialogTitle className="font-display text-xl">
-                      {selectedVendor.companyName}
+                      {selectedVendor.company_name}
                     </DialogTitle>
                     <DialogDescription className="flex items-center gap-2 mt-1">
-                      <StatusBadge status={selectedVendor.status} size="sm" />
+                      <StatusBadge status={selectedVendor.status?.toLowerCase() as any} size="sm" />
                     </DialogDescription>
                   </div>
                 </div>
@@ -452,7 +647,7 @@ const AdminPanel = () => {
 
               {/* Vendor Stats */}
               {(() => {
-                const vendorStats = getVendorStats(selectedVendor.id);
+                const vendorStats = getVendorStats(selectedVendor._id);
                 return (
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
                     <div className="p-3 bg-primary/5 rounded-lg text-center">
@@ -492,16 +687,8 @@ const AdminPanel = () => {
                     <Phone className="w-5 h-5 text-primary" />
                     <div>
                       <p className="text-xs text-muted-foreground">Phone</p>
-                      <p className="text-sm font-medium text-foreground">{selectedVendor.phoneNumber}</p>
+                      <p className="text-sm font-medium text-foreground">{selectedVendor.phone || 'N/A'}</p>
                     </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-                  <Building2 className="w-5 h-5 text-primary" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Contact Person</p>
-                    <p className="text-sm font-medium text-foreground">{selectedVendor.contactPersonName}</p>
                   </div>
                 </div>
 
@@ -509,67 +696,48 @@ const AdminPanel = () => {
                   <MapPin className="w-5 h-5 text-primary mt-0.5" />
                   <div>
                     <p className="text-xs text-muted-foreground">Business Address</p>
-                    <p className="text-sm font-medium text-foreground">{selectedVendor.businessAddress}</p>
+                    <p className="text-sm font-medium text-foreground">{selectedVendor.address || 'N/A'}</p>
                   </div>
                 </div>
 
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="p-3 bg-muted rounded-lg">
-                    <p className="text-xs text-muted-foreground">GST Number</p>
-                    <p className="text-sm font-mono font-medium text-foreground">{selectedVendor.gstNumber}</p>
-                  </div>
-                  <div className="p-3 bg-muted rounded-lg">
-                    <p className="text-xs text-muted-foreground">Registration Number</p>
-                    <p className="text-sm font-mono font-medium text-foreground">{selectedVendor.registrationNumber}</p>
-                  </div>
+                <div className="p-3 bg-muted rounded-lg">
+                  <p className="text-xs text-muted-foreground">GST Number</p>
+                  <p className="text-sm font-mono font-medium text-foreground">{selectedVendor.gst_number}</p>
                 </div>
 
-                {selectedVendor.websiteUrl && (
+                {selectedVendor.created_at && (
                   <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-                    <ExternalLink className="w-5 h-5 text-primary" />
+                    <Calendar className="w-5 h-5 text-primary" />
                     <div>
-                      <p className="text-xs text-muted-foreground">Website</p>
-                      <a
-                        href={selectedVendor.websiteUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm font-medium text-primary hover:underline"
-                      >
-                        {selectedVendor.websiteUrl}
-                      </a>
+                      <p className="text-xs text-muted-foreground">Registration Date</p>
+                      <p className="text-sm font-medium text-foreground">
+                        {new Date(selectedVendor.created_at).toLocaleDateString('en-IN', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                        })}
+                      </p>
                     </div>
                   </div>
                 )}
-
-                <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-                  <Calendar className="w-5 h-5 text-primary" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Registration Date</p>
-                    <p className="text-sm font-medium text-foreground">
-                      {new Date(selectedVendor.createdAt).toLocaleDateString('en-IN', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                      })}
-                    </p>
-                  </div>
-                </div>
               </div>
 
-              {selectedVendor.status === 'pending' && (
+              {selectedVendor.status === 'PENDING' && (
                 <div className="flex gap-3 mt-6 pt-4 border-t border-border">
                   <Button
                     variant="success"
                     className="flex-1"
-                    onClick={() => handleStatusUpdate(selectedVendor.id, 'approved')}
+                    onClick={() => handleApproveVendor(selectedVendor._id)}
+                    disabled={actionLoading}
                   >
-                    <CheckCircle className="w-4 h-4 mr-2" />
+                    {actionLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
                     Approve Vendor
                   </Button>
                   <Button
                     variant="destructive"
                     className="flex-1"
                     onClick={() => setShowRejectConfirm(true)}
+                    disabled={actionLoading}
                   >
                     <XCircle className="w-4 h-4 mr-2" />
                     Reject
@@ -577,14 +745,15 @@ const AdminPanel = () => {
                 </div>
               )}
 
-              {selectedVendor.status === 'approved' && (
+              {selectedVendor.status === 'APPROVED' && (
                 <div className="mt-6 pt-4 border-t border-border">
                   <Button
                     variant="outline"
                     className="w-full text-destructive border-destructive/30 hover:bg-destructive/10"
-                    onClick={() => handleBlockVendor(selectedVendor.id)}
+                    onClick={() => handleBlockVendor(selectedVendor._id)}
+                    disabled={actionLoading}
                   >
-                    <Ban className="w-4 h-4 mr-2" />
+                    {actionLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Ban className="w-4 h-4 mr-2" />}
                     Block Vendor
                   </Button>
                 </div>
@@ -603,7 +772,7 @@ const AdminPanel = () => {
           <DialogHeader>
             <DialogTitle>Reject Vendor</DialogTitle>
             <DialogDescription>
-              Provide a reason for rejecting {selectedVendor?.companyName}. This will be sent to the vendor.
+              Provide a reason for rejecting {selectedVendor?.company_name}. This will be sent to the vendor.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-4">
@@ -624,14 +793,17 @@ const AdminPanel = () => {
                   setShowRejectConfirm(false);
                   setRejectionReason('');
                 }}
+                disabled={actionLoading}
               >
                 Cancel
               </Button>
               <Button 
                 variant="destructive" 
                 className="flex-1" 
-                onClick={() => selectedVendor && handleStatusUpdate(selectedVendor.id, 'rejected', rejectionReason)}
+                onClick={() => selectedVendor && handleRejectVendor(selectedVendor._id, rejectionReason)}
+                disabled={actionLoading}
               >
+                {actionLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Confirm Reject
               </Button>
             </div>
