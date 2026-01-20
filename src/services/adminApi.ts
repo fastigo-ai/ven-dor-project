@@ -381,3 +381,116 @@ export const blockVendor = async (vendorId: string): Promise<ApiResponse<{ messa
     return { error: 'Network error. Please try again.' };
   }
 };
+
+// ==============================
+// PROJECTS MANAGEMENT (Admin View)
+// ==============================
+
+export interface AdminProject {
+  _id: string;
+  vendor_id: string;
+  name: string;
+  support_type: string;
+  status: string;
+  l1_support_name?: string;
+  l1_support_number?: string;
+  created_at?: string;
+}
+
+// GET /admin/projects?vendor_id=xxx - List projects for a vendor
+export const listProjectsByVendor = async (vendorId: string): Promise<ApiResponse<AdminProject[]>> => {
+  try {
+    const token = getAdminToken();
+    if (!token) {
+      return { error: 'Authentication required. Please login again.' };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/admin/projects?vendor_id=${encodeURIComponent(vendorId)}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 401) {
+        clearAdminToken();
+        return { error: 'Session expired. Please login again.' };
+      }
+      if (response.status === 403) {
+        return { error: 'Admin access required.' };
+      }
+      return { error: error.detail || 'Failed to fetch projects' };
+    }
+
+    const data: AdminProject[] = await response.json();
+    console.log('Backend listProjectsByVendor response:', data);
+
+    return { data };
+  } catch (error) {
+    console.error('listProjectsByVendor error:', error);
+    return { error: 'Network error. Please try again.' };
+  }
+};
+
+// ==============================
+// CALLS MANAGEMENT (Admin View)
+// ==============================
+
+export interface AdminCall {
+  _id: string;
+  project_id: string;
+  state_name: string;
+  branch_name: string;
+  branch_category?: string;
+  branch_code?: string;
+  address: string;
+  pincode: string;
+  contact_name: string;
+  contact_phone: string;
+  assets_count: number;
+  support_type: string;
+  asset_type?: string;
+  status: string;
+  created_at?: string;
+}
+
+// GET /admin/calls?project_id=xxx - List calls for a project
+export const listCallsByProject = async (projectId: string): Promise<ApiResponse<AdminCall[]>> => {
+  try {
+    const token = getAdminToken();
+    if (!token) {
+      return { error: 'Authentication required. Please login again.' };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/admin/calls?project_id=${encodeURIComponent(projectId)}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 401) {
+        clearAdminToken();
+        return { error: 'Session expired. Please login again.' };
+      }
+      if (response.status === 403) {
+        return { error: 'Admin access required.' };
+      }
+      return { error: error.detail || 'Failed to fetch calls' };
+    }
+
+    const data: AdminCall[] = await response.json();
+    console.log('Backend listCallsByProject response:', data);
+
+    return { data };
+  } catch (error) {
+    console.error('listCallsByProject error:', error);
+    return { error: 'Network error. Please try again.' };
+  }
+};
