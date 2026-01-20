@@ -59,9 +59,13 @@ import {
   blockVendor,
   updateRateCard as updateRateCardApi,
   addRateCard as addRateCardApi,
+  listProjectsByVendor,
+  listCallsByProject,
   Vendor,
   RateCard,
   RateCardCreate,
+  AdminProject,
+  AdminCall,
   isAdminAuthenticated,
   clearAdminToken,
 } from '@/services/adminApi';
@@ -81,15 +85,21 @@ const AdminPanel = () => {
   // API data state
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [rateCards, setRateCards] = useState<RateCard[]>([]);
+  const [adminProjects, setAdminProjects] = useState<AdminProject[]>([]);
+  const [adminCalls, setAdminCalls] = useState<AdminCall[]>([]);
   
   // Loading states
   const [vendorsLoading, setVendorsLoading] = useState(true);
   const [rateCardsLoading, setRateCardsLoading] = useState(true);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [callsLoading, setCallsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   
   // Error states
   const [vendorsError, setVendorsError] = useState<string | null>(null);
   const [rateCardsError, setRateCardsError] = useState<string | null>(null);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
+  const [callsError, setCallsError] = useState<string | null>(null);
   
   // UI state
   const [searchQuery, setSearchQuery] = useState('');
@@ -100,6 +110,8 @@ const AdminPanel = () => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [selectedProject, setSelectedProject] = useState<ProjectData | null>(null);
+  const [selectedVendorForProjects, setSelectedVendorForProjects] = useState<string | null>(null);
+  const [selectedProjectForCalls, setSelectedProjectForCalls] = useState<string | null>(null);
   
   // Create Rate Card state
   const [showCreateRate, setShowCreateRate] = useState(false);
@@ -150,6 +162,42 @@ const AdminPanel = () => {
     }
     
     setRateCardsLoading(false);
+  };
+
+  // Fetch projects by vendor ID
+  const fetchProjectsByVendor = async (vendorId: string) => {
+    setProjectsLoading(true);
+    setProjectsError(null);
+    setSelectedVendorForProjects(vendorId);
+    
+    const result = await listProjectsByVendor(vendorId);
+    
+    if (result.error) {
+      setProjectsError(result.error);
+      toast({ title: 'Error', description: result.error, variant: 'destructive' });
+    } else if (result.data) {
+      setAdminProjects(result.data);
+    }
+    
+    setProjectsLoading(false);
+  };
+
+  // Fetch calls by project ID
+  const fetchCallsByProject = async (projectId: string) => {
+    setCallsLoading(true);
+    setCallsError(null);
+    setSelectedProjectForCalls(projectId);
+    
+    const result = await listCallsByProject(projectId);
+    
+    if (result.error) {
+      setCallsError(result.error);
+      toast({ title: 'Error', description: result.error, variant: 'destructive' });
+    } else if (result.data) {
+      setAdminCalls(result.data);
+    }
+    
+    setCallsLoading(false);
   };
 
   // Initial data fetch
@@ -526,83 +574,231 @@ const AdminPanel = () => {
           </TabsContent>
 
           <TabsContent value="projects">
-            <div className="bg-card rounded-xl border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Vendor</TableHead>
-                    <TableHead>Project Name</TableHead>
-                    <TableHead>Support Type</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                    <TableHead className="text-center">Total Calls</TableHead>
-                    <TableHead className="text-center">Completed</TableHead>
-                    <TableHead className="text-right">Total Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {allProjects.map((project) => (
-                    <TableRow 
-                      key={project.id} 
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => setSelectedProject(project)}
-                    >
-                      <TableCell className="font-medium">{project.vendor?.company_name || 'N/A'}</TableCell>
-                      <TableCell>{project.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{project.supportType}</Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="outline" className={cn(
-                          project.status === 'active' && 'bg-success/10 text-success',
-                          project.status === 'on-hold' && 'bg-warning/10 text-warning',
-                          project.status === 'completed' && 'bg-muted text-muted-foreground'
-                        )}>
-                          {project.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">{project.totalCalls}</TableCell>
-                      <TableCell className="text-center">{project.completedCalls}</TableCell>
-                      <TableCell className="text-right font-mono">₹{project.totalAmount.toLocaleString()}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <div className="mb-4">
+              <Label className="text-sm text-muted-foreground mb-2 block">Select Vendor to View Projects</Label>
+              <div className="flex flex-wrap gap-2">
+                {vendors.filter(v => v.status === 'APPROVED').map((vendor) => (
+                  <Button
+                    key={vendor._id}
+                    variant={selectedVendorForProjects === vendor._id ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => fetchProjectsByVendor(vendor._id)}
+                  >
+                    {vendor.company_name}
+                  </Button>
+                ))}
+              </div>
             </div>
+            
+            {projectsError ? (
+              <div className="text-center py-12 bg-card rounded-xl border border-destructive/30">
+                <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
+                <p className="text-lg font-medium text-foreground mb-2">Failed to load projects</p>
+                <p className="text-muted-foreground mb-4">{projectsError}</p>
+                {selectedVendorForProjects && (
+                  <Button variant="outline" onClick={() => fetchProjectsByVendor(selectedVendorForProjects)}>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Retry
+                  </Button>
+                )}
+              </div>
+            ) : !selectedVendorForProjects ? (
+              <div className="text-center py-12 bg-card rounded-xl border border-border">
+                <FolderKanban className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-lg font-medium text-foreground">Select a vendor</p>
+                <p className="text-muted-foreground">Choose a vendor above to view their projects</p>
+              </div>
+            ) : projectsLoading ? (
+              <div className="bg-card rounded-xl border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead>Project Name</TableHead>
+                      <TableHead>Support Type</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                      <TableHead>L1 Support</TableHead>
+                      <TableHead className="text-center">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[1, 2, 3].map((i) => (
+                      <TableRow key={i}>
+                        <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                        <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                        <TableCell><Skeleton className="h-5 w-16 mx-auto" /></TableCell>
+                        <TableCell><Skeleton className="h-5 w-28" /></TableCell>
+                        <TableCell><Skeleton className="h-8 w-20 mx-auto" /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : adminProjects.length === 0 ? (
+              <div className="text-center py-12 bg-card rounded-xl border border-border">
+                <FolderKanban className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-lg font-medium text-foreground">No projects found</p>
+                <p className="text-muted-foreground">This vendor has no projects yet</p>
+              </div>
+            ) : (
+              <div className="bg-card rounded-xl border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead>Project Name</TableHead>
+                      <TableHead>Support Type</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                      <TableHead>L1 Support</TableHead>
+                      <TableHead className="text-center">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {adminProjects.map((project) => (
+                      <TableRow key={project._id}>
+                        <TableCell className="font-medium">{project.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{project.support_type}</Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="outline" className={cn(
+                            project.status === 'active' && 'bg-success/10 text-success',
+                            project.status === 'on-hold' && 'bg-warning/10 text-warning',
+                            project.status === 'completed' && 'bg-muted text-muted-foreground'
+                          )}>
+                            {project.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{project.l1_support_name || 'N/A'}</TableCell>
+                        <TableCell className="text-center">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => fetchCallsByProject(project._id)}
+                          >
+                            <PhoneCall className="w-4 h-4 mr-1" />
+                            View Calls
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="calls">
-            <div className="bg-card rounded-xl border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Company</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Project</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {allCalls.slice(0, 20).map((call) => (
-                      <TableRow key={call.id}>
-                        <TableCell className="font-medium">{call.vendor?.company_name || 'N/A'}</TableCell>
-                        <TableCell>{call.branchName}</TableCell>
-                        <TableCell>{call.project?.name || 'N/A'}</TableCell>
-                        <TableCell className="text-right font-mono">{call.assetsCount} assets</TableCell>
-                        <TableCell>
-                        <Badge variant="outline" className={cn(
-                          call.status === 'completed' && 'bg-success/10 text-success',
-                          call.status === 'pending' && 'bg-warning/10 text-warning',
-                          call.status === 'assigned' && 'bg-primary/10 text-primary'
-                        )}>
-                          {call.status}
-                        </Badge>
-                      </TableCell>
+            {selectedProjectForCalls && (
+              <div className="mb-4 flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Viewing calls for project:</span>
+                <Badge variant="secondary">
+                  {adminProjects.find(p => p._id === selectedProjectForCalls)?.name || selectedProjectForCalls}
+                </Badge>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => {
+                    setSelectedProjectForCalls(null);
+                    setAdminCalls([]);
+                  }}
+                >
+                  Clear
+                </Button>
+              </div>
+            )}
+            
+            {callsError ? (
+              <div className="text-center py-12 bg-card rounded-xl border border-destructive/30">
+                <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
+                <p className="text-lg font-medium text-foreground mb-2">Failed to load calls</p>
+                <p className="text-muted-foreground mb-4">{callsError}</p>
+                {selectedProjectForCalls && (
+                  <Button variant="outline" onClick={() => fetchCallsByProject(selectedProjectForCalls)}>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Retry
+                  </Button>
+                )}
+              </div>
+            ) : !selectedProjectForCalls ? (
+              <div className="text-center py-12 bg-card rounded-xl border border-border">
+                <PhoneCall className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-lg font-medium text-foreground">Select a project first</p>
+                <p className="text-muted-foreground">Go to the Projects tab, select a vendor, then click "View Calls" on a project</p>
+              </div>
+            ) : callsLoading ? (
+              <div className="bg-card rounded-xl border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead>Branch Name</TableHead>
+                      <TableHead>Contact</TableHead>
+                      <TableHead>Address</TableHead>
+                      <TableHead className="text-right">Assets</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {[1, 2, 3].map((i) => (
+                      <TableRow key={i}>
+                        <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                        <TableCell><Skeleton className="h-5 w-28" /></TableCell>
+                        <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                        <TableCell><Skeleton className="h-5 w-12" /></TableCell>
+                        <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : adminCalls.length === 0 ? (
+              <div className="text-center py-12 bg-card rounded-xl border border-border">
+                <PhoneCall className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-lg font-medium text-foreground">No calls found</p>
+                <p className="text-muted-foreground">This project has no calls yet</p>
+              </div>
+            ) : (
+              <div className="bg-card rounded-xl border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead>Branch Name</TableHead>
+                      <TableHead>Contact</TableHead>
+                      <TableHead>Address</TableHead>
+                      <TableHead className="text-right">Assets</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {adminCalls.map((call) => (
+                      <TableRow key={call._id}>
+                        <TableCell className="font-medium">{call.branch_name}</TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="text-sm">{call.contact_name}</p>
+                            <p className="text-xs text-muted-foreground">{call.contact_phone}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="text-sm truncate max-w-[200px]">{call.address}</p>
+                            <p className="text-xs text-muted-foreground">{call.state_name} - {call.pincode}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-mono">{call.assets_count}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={cn(
+                            call.status === 'completed' && 'bg-success/10 text-success',
+                            call.status === 'pending' && 'bg-warning/10 text-warning',
+                            call.status === 'assigned' && 'bg-primary/10 text-primary'
+                          )}>
+                            {call.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="rates">
