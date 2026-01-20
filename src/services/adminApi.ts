@@ -64,26 +64,33 @@ export const adminLogin = async (
 // RATE CARDS MANAGEMENT
 // ==============================
 
+export interface SlaMultipliers {
+  [key: string]: number;
+}
+
 export interface RateCard {
   _id?: string;
   support_type: string;
-  base_rate: number;
-  per_km_rate: number;
-  urgent_multiplier: number;
+  base_price: number;
+  per_asset_price: number;
+  sla_hours: number;
+  sla_multipliers: SlaMultipliers;
   created_at?: string;
 }
 
 export interface RateCardCreate {
   support_type: string;
-  base_rate: number;
-  per_km_rate: number;
-  urgent_multiplier: number;
+  base_price: number;
+  per_asset_price: number;
+  sla_hours: number;
+  sla_multipliers: SlaMultipliers;
 }
 
 export interface RateCardUpdate {
-  base_rate: number;
-  per_km_rate: number;
-  urgent_multiplier: number;
+  base_price: number;
+  per_asset_price: number;
+  sla_hours: number;
+  sla_multipliers: SlaMultipliers;
 }
 
 // GET /admin/rate-cards - List all rate cards

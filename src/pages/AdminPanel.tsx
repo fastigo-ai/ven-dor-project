@@ -96,7 +96,7 @@ const AdminPanel = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'PENDING' | 'APPROVED' | 'REJECTED'>('all');
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [editingRate, setEditingRate] = useState<RateCard | null>(null);
-  const [rateForm, setRateForm] = useState({ base_rate: 0, per_km_rate: 0, urgent_multiplier: 0 });
+  const [rateForm, setRateForm] = useState({ base_price: 0, per_asset_price: 0, sla_hours: 4, sla_multipliers: { urgent: 1.5, express: 1.25 } as Record<string, number> });
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [selectedProject, setSelectedProject] = useState<ProjectData | null>(null);
@@ -105,9 +105,10 @@ const AdminPanel = () => {
   const [showCreateRate, setShowCreateRate] = useState(false);
   const [createRateForm, setCreateRateForm] = useState<RateCardCreate>({ 
     support_type: '', 
-    base_rate: 0, 
-    per_km_rate: 0, 
-    urgent_multiplier: 1.5 
+    base_price: 0, 
+    per_asset_price: 0, 
+    sla_hours: 4,
+    sla_multipliers: { urgent: 1.5, express: 1.25 }
   });
 
   // Handle logout
@@ -171,9 +172,10 @@ const AdminPanel = () => {
   const handleRateEdit = (rate: RateCard) => {
     setEditingRate(rate);
     setRateForm({ 
-      base_rate: rate.base_rate, 
-      per_km_rate: rate.per_km_rate, 
-      urgent_multiplier: rate.urgent_multiplier 
+      base_price: rate.base_price, 
+      per_asset_price: rate.per_asset_price, 
+      sla_hours: rate.sla_hours,
+      sla_multipliers: rate.sla_multipliers || { urgent: 1.5, express: 1.25 }
     });
   };
 
@@ -209,7 +211,7 @@ const AdminPanel = () => {
     } else {
       toast({ title: 'Rate Card Created', description: `${createRateForm.support_type} rate card has been created.` });
       setShowCreateRate(false);
-      setCreateRateForm({ support_type: '', base_rate: 0, per_km_rate: 0, urgent_multiplier: 1.5 });
+      setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_hours: 4, sla_multipliers: { urgent: 1.5, express: 1.25 } });
       fetchRateCards(); // Refresh rate cards
     }
     
@@ -326,6 +328,7 @@ const AdminPanel = () => {
       <TableCell><Skeleton className="h-5 w-16" /></TableCell>
       <TableCell><Skeleton className="h-5 w-16" /></TableCell>
       <TableCell><Skeleton className="h-5 w-12" /></TableCell>
+      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
       <TableCell><Skeleton className="h-8 w-8 rounded" /></TableCell>
     </TableRow>
   );
@@ -618,9 +621,10 @@ const AdminPanel = () => {
                   <TableHeader>
                     <TableRow className="bg-muted/50">
                       <TableHead>Support Type</TableHead>
-                      <TableHead className="text-right">Base Rate</TableHead>
-                      <TableHead className="text-right">Per KM</TableHead>
-                      <TableHead className="text-right">Urgent (×)</TableHead>
+                      <TableHead className="text-right">Base Price (₹)</TableHead>
+                      <TableHead className="text-right">Per Asset (₹)</TableHead>
+                      <TableHead className="text-right">SLA Hours</TableHead>
+                      <TableHead className="text-right">SLA Multipliers</TableHead>
                       <TableHead className="text-center">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -629,7 +633,7 @@ const AdminPanel = () => {
                       [1, 2, 3].map((i) => <RateCardSkeleton key={i} />)
                     ) : rateCards.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                           No rate cards found. Click "Add Rate Card" to create one.
                         </TableCell>
                       </TableRow>
@@ -637,9 +641,12 @@ const AdminPanel = () => {
                       rateCards.map((card) => (
                         <TableRow key={card._id || card.support_type}>
                           <TableCell className="font-medium">{card.support_type}</TableCell>
-                          <TableCell className="text-right font-mono">₹{card.base_rate}</TableCell>
-                          <TableCell className="text-right font-mono">₹{card.per_km_rate}</TableCell>
-                          <TableCell className="text-right font-mono">{card.urgent_multiplier}×</TableCell>
+                          <TableCell className="text-right font-mono">₹{card.base_price}</TableCell>
+                          <TableCell className="text-right font-mono">₹{card.per_asset_price}</TableCell>
+                          <TableCell className="text-right font-mono">{card.sla_hours}h</TableCell>
+                          <TableCell className="text-right font-mono text-xs">
+                            {card.sla_multipliers ? Object.entries(card.sla_multipliers).map(([key, val]) => `${key}: ${val}×`).join(', ') : '-'}
+                          </TableCell>
                           <TableCell className="text-center">
                             <Button size="sm" variant="ghost" onClick={() => handleRateEdit(card)}>
                               <Edit2 className="h-4 w-4" />
@@ -664,16 +671,24 @@ const AdminPanel = () => {
           </DialogHeader>
           <div className="space-y-4 mt-4">
             <div className="space-y-2">
-              <Label>Base Rate (₹)</Label>
-              <Input type="number" value={rateForm.base_rate} onChange={(e) => setRateForm({ ...rateForm, base_rate: Number(e.target.value) })} />
+              <Label>Base Price (₹)</Label>
+              <Input type="number" value={rateForm.base_price} onChange={(e) => setRateForm({ ...rateForm, base_price: Number(e.target.value) })} />
             </div>
             <div className="space-y-2">
-              <Label>Per KM Rate (₹)</Label>
-              <Input type="number" value={rateForm.per_km_rate} onChange={(e) => setRateForm({ ...rateForm, per_km_rate: Number(e.target.value) })} />
+              <Label>Per Asset Price (₹)</Label>
+              <Input type="number" value={rateForm.per_asset_price} onChange={(e) => setRateForm({ ...rateForm, per_asset_price: Number(e.target.value) })} />
+            </div>
+            <div className="space-y-2">
+              <Label>SLA Hours</Label>
+              <Input type="number" value={rateForm.sla_hours} onChange={(e) => setRateForm({ ...rateForm, sla_hours: Number(e.target.value) })} />
             </div>
             <div className="space-y-2">
               <Label>Urgent Multiplier</Label>
-              <Input type="number" step="0.1" value={rateForm.urgent_multiplier} onChange={(e) => setRateForm({ ...rateForm, urgent_multiplier: Number(e.target.value) })} />
+              <Input type="number" step="0.1" value={rateForm.sla_multipliers.urgent || 1.5} onChange={(e) => setRateForm({ ...rateForm, sla_multipliers: { ...rateForm.sla_multipliers, urgent: Number(e.target.value) } })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Express Multiplier</Label>
+              <Input type="number" step="0.1" value={rateForm.sla_multipliers.express || 1.25} onChange={(e) => setRateForm({ ...rateForm, sla_multipliers: { ...rateForm.sla_multipliers, express: Number(e.target.value) } })} />
             </div>
             <div className="flex gap-3 pt-4">
               <Button variant="outline" className="flex-1" onClick={() => setEditingRate(null)} disabled={actionLoading}>
@@ -691,7 +706,7 @@ const AdminPanel = () => {
       {/* Create Rate Card Dialog */}
       <Dialog open={showCreateRate} onOpenChange={(open) => {
         setShowCreateRate(open);
-        if (!open) setCreateRateForm({ support_type: '', base_rate: 0, per_km_rate: 0, urgent_multiplier: 1.5 });
+        if (!open) setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_hours: 4, sla_multipliers: { urgent: 1.5, express: 1.25 } });
       }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -710,22 +725,32 @@ const AdminPanel = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label>Base Rate (₹)</Label>
+              <Label>Base Price (₹)</Label>
               <Input 
                 type="number" 
                 placeholder="0" 
-                value={createRateForm.base_rate} 
-                onChange={(e) => setCreateRateForm({ ...createRateForm, base_rate: Number(e.target.value) })} 
+                value={createRateForm.base_price} 
+                onChange={(e) => setCreateRateForm({ ...createRateForm, base_price: Number(e.target.value) })} 
               />
             </div>
             <div className="space-y-2">
-              <Label>Per KM Rate (₹)</Label>
+              <Label>Per Asset Price (₹)</Label>
               <Input 
                 type="number" 
                 placeholder="0" 
-                value={createRateForm.per_km_rate} 
-                onChange={(e) => setCreateRateForm({ ...createRateForm, per_km_rate: Number(e.target.value) })} 
+                value={createRateForm.per_asset_price} 
+                onChange={(e) => setCreateRateForm({ ...createRateForm, per_asset_price: Number(e.target.value) })} 
               />
+            </div>
+            <div className="space-y-2">
+              <Label>SLA Hours</Label>
+              <Input 
+                type="number" 
+                placeholder="4" 
+                value={createRateForm.sla_hours} 
+                onChange={(e) => setCreateRateForm({ ...createRateForm, sla_hours: Number(e.target.value) })} 
+              />
+              <p className="text-xs text-muted-foreground">Service Level Agreement response time in hours</p>
             </div>
             <div className="space-y-2">
               <Label>Urgent Multiplier</Label>
@@ -733,10 +758,19 @@ const AdminPanel = () => {
                 type="number" 
                 step="0.1" 
                 placeholder="1.5" 
-                value={createRateForm.urgent_multiplier} 
-                onChange={(e) => setCreateRateForm({ ...createRateForm, urgent_multiplier: Number(e.target.value) })} 
+                value={createRateForm.sla_multipliers.urgent} 
+                onChange={(e) => setCreateRateForm({ ...createRateForm, sla_multipliers: { ...createRateForm.sla_multipliers, urgent: Number(e.target.value) } })} 
               />
-              <p className="text-xs text-muted-foreground">Applied when a call is marked as urgent</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Express Multiplier</Label>
+              <Input 
+                type="number" 
+                step="0.1" 
+                placeholder="1.25" 
+                value={createRateForm.sla_multipliers.express} 
+                onChange={(e) => setCreateRateForm({ ...createRateForm, sla_multipliers: { ...createRateForm.sla_multipliers, express: Number(e.target.value) } })} 
+              />
             </div>
             <div className="flex gap-3 pt-4">
               <Button 
@@ -744,7 +778,7 @@ const AdminPanel = () => {
                 className="flex-1" 
                 onClick={() => {
                   setShowCreateRate(false);
-                  setCreateRateForm({ support_type: '', base_rate: 0, per_km_rate: 0, urgent_multiplier: 1.5 });
+                  setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_hours: 4, sla_multipliers: { urgent: 1.5, express: 1.25 } });
                 }}
                 disabled={actionLoading}
               >
