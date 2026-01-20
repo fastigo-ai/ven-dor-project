@@ -45,6 +45,7 @@ import {
   AlertCircle,
   RefreshCw,
   LogOut,
+  Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
@@ -57,8 +58,10 @@ import {
   rejectVendor,
   blockVendor,
   updateRateCard as updateRateCardApi,
+  addRateCard as addRateCardApi,
   Vendor,
   RateCard,
+  RateCardCreate,
   isAdminAuthenticated,
   clearAdminToken,
 } from '@/services/adminApi';
@@ -97,6 +100,15 @@ const AdminPanel = () => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [selectedProject, setSelectedProject] = useState<ProjectData | null>(null);
+  
+  // Create Rate Card state
+  const [showCreateRate, setShowCreateRate] = useState(false);
+  const [createRateForm, setCreateRateForm] = useState<RateCardCreate>({ 
+    support_type: '', 
+    base_rate: 0, 
+    per_km_rate: 0, 
+    urgent_multiplier: 1.5 
+  });
 
   // Handle logout
   const handleLogout = () => {
@@ -176,6 +188,28 @@ const AdminPanel = () => {
     } else {
       toast({ title: 'Rate Updated', description: `${editingRate.support_type} rates have been updated.` });
       setEditingRate(null);
+      fetchRateCards(); // Refresh rate cards
+    }
+    
+    setActionLoading(false);
+  };
+
+  // Handle Create Rate Card
+  const handleCreateRate = async () => {
+    if (!createRateForm.support_type.trim()) {
+      toast({ title: 'Error', description: 'Support type is required', variant: 'destructive' });
+      return;
+    }
+    
+    setActionLoading(true);
+    const result = await addRateCardApi(createRateForm);
+    
+    if (result.error) {
+      toast({ title: 'Error', description: result.error, variant: 'destructive' });
+    } else {
+      toast({ title: 'Rate Card Created', description: `${createRateForm.support_type} rate card has been created.` });
+      setShowCreateRate(false);
+      setCreateRateForm({ support_type: '', base_rate: 0, per_km_rate: 0, urgent_multiplier: 1.5 });
       fetchRateCards(); // Refresh rate cards
     }
     
@@ -569,6 +603,13 @@ const AdminPanel = () => {
           </TabsContent>
 
           <TabsContent value="rates">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-display font-semibold text-lg text-foreground">Rate Cards</h3>
+              <Button onClick={() => setShowCreateRate(true)} size="sm">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Rate Card
+              </Button>
+            </div>
             {rateCardsError ? (
               <ErrorState message={rateCardsError} onRetry={fetchRateCards} />
             ) : (
@@ -589,7 +630,7 @@ const AdminPanel = () => {
                     ) : rateCards.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                          No rate cards found
+                          No rate cards found. Click "Add Rate Card" to create one.
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -641,6 +682,77 @@ const AdminPanel = () => {
               <Button className="flex-1" onClick={handleRateSave} disabled={actionLoading}>
                 {actionLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Save Changes
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Rate Card Dialog */}
+      <Dialog open={showCreateRate} onOpenChange={(open) => {
+        setShowCreateRate(open);
+        if (!open) setCreateRateForm({ support_type: '', base_rate: 0, per_km_rate: 0, urgent_multiplier: 1.5 });
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create New Rate Card</DialogTitle>
+            <DialogDescription>
+              Add a new support type with pricing details.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label>Support Type *</Label>
+              <Input 
+                placeholder="e.g., Onsite Support, Remote Support" 
+                value={createRateForm.support_type} 
+                onChange={(e) => setCreateRateForm({ ...createRateForm, support_type: e.target.value })} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Base Rate (₹)</Label>
+              <Input 
+                type="number" 
+                placeholder="0" 
+                value={createRateForm.base_rate} 
+                onChange={(e) => setCreateRateForm({ ...createRateForm, base_rate: Number(e.target.value) })} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Per KM Rate (₹)</Label>
+              <Input 
+                type="number" 
+                placeholder="0" 
+                value={createRateForm.per_km_rate} 
+                onChange={(e) => setCreateRateForm({ ...createRateForm, per_km_rate: Number(e.target.value) })} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Urgent Multiplier</Label>
+              <Input 
+                type="number" 
+                step="0.1" 
+                placeholder="1.5" 
+                value={createRateForm.urgent_multiplier} 
+                onChange={(e) => setCreateRateForm({ ...createRateForm, urgent_multiplier: Number(e.target.value) })} 
+              />
+              <p className="text-xs text-muted-foreground">Applied when a call is marked as urgent</p>
+            </div>
+            <div className="flex gap-3 pt-4">
+              <Button 
+                variant="outline" 
+                className="flex-1" 
+                onClick={() => {
+                  setShowCreateRate(false);
+                  setCreateRateForm({ support_type: '', base_rate: 0, per_km_rate: 0, urgent_multiplier: 1.5 });
+                }}
+                disabled={actionLoading}
+              >
+                Cancel
+              </Button>
+              <Button className="flex-1" onClick={handleCreateRate} disabled={actionLoading}>
+                {actionLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Create Rate Card
               </Button>
             </div>
           </div>
