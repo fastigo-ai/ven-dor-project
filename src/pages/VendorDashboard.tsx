@@ -10,6 +10,7 @@ import {
   BarChart3,
   FileSpreadsheet,
   IndianRupee,
+  TrendingUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,6 +24,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from '@/components/ui/chart';
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import Logo from '@/components/Logo';
 import StatusBadge from '@/components/StatusBadge';
 import ProjectList from '@/components/vendor/ProjectList';
@@ -67,6 +76,11 @@ const VendorDashboard = () => {
     });
   };
 
+  const pendingCalls = vendorCalls.filter(c => c.status === 'pending').length;
+  const assignedCalls = vendorCalls.filter(c => c.status === 'assigned').length;
+  const completedCalls = vendorCalls.filter(c => c.status === 'completed').length;
+  const totalAmount = vendorCalls.reduce((sum, c) => sum + c.assetsCount * 100, 0);
+
   const stats = [
     {
       title: 'Total Projects',
@@ -79,20 +93,33 @@ const VendorDashboard = () => {
     {
       title: 'Total Calls',
       value: vendorCalls.length.toString(),
-      change: `${vendorCalls.filter(c => c.status === 'completed').length} completed`,
+      change: `${completedCalls} completed`,
       icon: FileSpreadsheet,
       color: 'text-success',
       bgColor: 'bg-success/10',
     },
     {
       title: 'Total Amount',
-      value: `₹${(vendorCalls.reduce((sum, c) => sum + c.assetsCount * 100, 0) / 1000).toFixed(1)}K`,
+      value: `₹${(totalAmount / 1000).toFixed(1)}K`,
       change: 'All projects',
       icon: IndianRupee,
-      color: 'text-accent',
-      bgColor: 'bg-accent/10',
+      color: 'text-primary',
+      bgColor: 'bg-primary/10',
     },
   ];
+
+  // Pie chart data for call status distribution
+  const pieChartData = [
+    { name: 'Pending', value: pendingCalls, fill: 'hsl(38, 92%, 50%)' },
+    { name: 'Assigned', value: assignedCalls, fill: 'hsl(189, 60%, 57%)' },
+    { name: 'Completed', value: completedCalls, fill: 'hsl(142, 72%, 40%)' },
+  ].filter(item => item.value > 0);
+
+  const pieChartConfig = {
+    pending: { label: 'Pending', color: 'hsl(38, 92%, 50%)' },
+    assigned: { label: 'Assigned', color: 'hsl(189, 60%, 57%)' },
+    completed: { label: 'Completed', color: 'hsl(142, 72%, 40%)' },
+  };
 
   const getInitials = (name: string) => {
     return name
@@ -199,44 +226,107 @@ const VendorDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-          {stats.map((stat) => (
-            <Card key={stat.title} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{stat.title}</p>
-                    <p className="text-2xl font-bold text-foreground mt-1">
-                      {stat.value}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {stat.change}
-                    </p>
+        {/* Stats Grid with Pie Chart */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Stats Cards */}
+          <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {stats.map((stat) => (
+              <Card key={stat.title} className="hover:shadow-lg transition-all duration-300 hover:-translate-y-1 border-l-4 border-l-primary/50">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground font-medium">{stat.title}</p>
+                      <p className="text-3xl font-bold text-foreground mt-2 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                        {stat.value}
+                      </p>
+                      <div className="flex items-center gap-1 mt-2">
+                        <TrendingUp className="h-3 w-3 text-success" />
+                        <p className="text-xs text-muted-foreground">
+                          {stat.change}
+                        </p>
+                      </div>
+                    </div>
+                    <div className={`p-3 rounded-xl ${stat.bgColor} shadow-sm`}>
+                      <stat.icon className={`h-6 w-6 ${stat.color}`} />
+                    </div>
                   </div>
-                  <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-                    <stat.icon className={`h-5 w-5 ${stat.color}`} />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Pie Chart Card */}
+          <Card className="hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-card to-accent/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                Call Status Overview
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {pieChartData.length > 0 ? (
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pieChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={70}
+                        paddingAngle={5}
+                        dataKey="value"
+                        strokeWidth={2}
+                        stroke="hsl(var(--background))"
+                      >
+                        {pieChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex justify-center gap-4 mt-2">
+                    {pieChartData.map((item, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: item.fill }}
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          {item.name}: {item.value}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              ) : (
+                <div className="h-48 flex items-center justify-center text-muted-foreground">
+                  <p className="text-sm">No call data yet</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Quick Actions */}
-        <Card className="mb-8">
+        <Card className="mb-8 bg-gradient-to-r from-primary/5 via-transparent to-accent/5 border-primary/20">
           <CardHeader>
-            <CardTitle className="text-lg">Quick Actions</CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <FolderPlus className="h-5 w-5 text-primary" />
+              Quick Actions
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex justify-center">
               <Button
-                variant="outline"
-                className="h-auto py-6 px-12 flex flex-col items-center gap-2 hover:bg-primary/5 hover:border-primary/30"
+                variant="hero"
+                size="lg"
+                className="h-auto py-4 px-8 flex items-center gap-3 shadow-lg hover:shadow-xl transition-all duration-300"
                 onClick={() => setCreateProjectOpen(true)}
               >
-                <FolderPlus className="h-6 w-6 text-primary" />
-                <span className="text-sm">Create Project</span>
+                <FolderPlus className="h-5 w-5" />
+                <span className="font-semibold">Create New Project</span>
               </Button>
             </div>
           </CardContent>

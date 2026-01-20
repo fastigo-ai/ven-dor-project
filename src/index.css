@@ -15,7 +15,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 200 25% 15%;
 
-    --primary: 168 80% 32%;
+    --primary: 189 60% 57%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 200 15% 94%;
@@ -24,8 +24,8 @@
     --muted: 200 12% 92%;
     --muted-foreground: 200 10% 45%;
 
-    --accent: 168 60% 95%;
-    --accent-foreground: 168 80% 25%;
+    --accent: 189 60% 95%;
+    --accent-foreground: 189 60% 30%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
@@ -38,26 +38,26 @@
 
     --border: 200 15% 88%;
     --input: 200 15% 88%;
-    --ring: 168 80% 32%;
+    --ring: 189 60% 57%;
 
     --radius: 0.75rem;
 
     /* Custom tokens */
-    --gradient-primary: linear-gradient(135deg, hsl(168, 80%, 32%) 0%, hsl(180, 70%, 28%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(189, 60%, 57%) 0%, hsl(195, 70%, 45%) 100%);
     --gradient-hero: linear-gradient(180deg, hsl(210, 20%, 98%) 0%, hsl(200, 20%, 94%) 100%);
     --gradient-card: linear-gradient(145deg, hsl(0, 0%, 100%) 0%, hsl(200, 15%, 98%) 100%);
     --shadow-soft: 0 4px 20px -4px hsl(200, 25%, 15%, 0.08);
-    --shadow-glow: 0 0 40px hsl(168, 80%, 32%, 0.15);
+    --shadow-glow: 0 0 40px hsl(189, 60%, 57%, 0.2);
     --shadow-card: 0 2px 12px -2px hsl(200, 25%, 15%, 0.06);
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 168 80% 32%;
+    --sidebar-primary: 189 60% 57%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 168 60% 95%;
-    --sidebar-accent-foreground: 168 80% 25%;
+    --sidebar-accent: 189 60% 95%;
+    --sidebar-accent-foreground: 189 60% 30%;
     --sidebar-border: 200 15% 88%;
-    --sidebar-ring: 168 80% 32%;
+    --sidebar-ring: 189 60% 57%;
   }
 
   .dark {
