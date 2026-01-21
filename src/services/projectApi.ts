@@ -283,3 +283,147 @@ export const validateProjectAddresses = async (projectId: string): Promise<ApiRe
     return { error: 'Network error. Please try again.' };
   }
 };
+
+// ========================================
+// VENDOR PROJECT LIST & DETAILS API
+// ========================================
+
+// Backend project response shape
+export interface BackendProject {
+  _id: string;
+  project_id?: string;
+  project_name: string;
+  support_type: string;
+  l1_support_name: string;
+  l1_support_number: string;
+  status: string;
+  sla?: {
+    priority: string;
+    response_time_minutes: number;
+  } | null;
+  created_at: string;
+  activated_at?: string | null;
+  vendor_id: string;
+}
+
+// Project details response shape (from GET /projects/{id}/details)
+export interface ProjectDetailsResponse {
+  project: {
+    project_id: string;
+    project_name: string;
+    support_type: string;
+    l1_support_name: string;
+    l1_support_number: string;
+    status: string;
+    sla?: {
+      priority: string;
+      response_time_minutes: number;
+    } | null;
+    created_at: string;
+    activated_at?: string | null;
+  };
+  summary: {
+    active_calls: number;
+    total_calls: number;
+    total_cost: number;
+  };
+  calls: ProjectCallRow[];
+}
+
+// Call row shape from backend
+export interface ProjectCallRow {
+  call_id: string;
+  branch_name: string;
+  branch_code: string;
+  address: string;
+  pincode: string;
+  asset_type: string;
+  support_type: string;
+  asset_count: number;
+  sla_priority?: string;
+  status: string;
+  engineer_name?: string;
+  engineer_contact?: string;
+  distance_km?: number;
+  serviceable: boolean;
+  created_at: string;
+  assigned_at?: string;
+}
+
+// Fetch all projects for vendor - GET /projects
+export const fetchVendorProjects = async (): Promise<ApiResponse<BackendProject[]>> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      return { error: 'Authentication required. Please login again.' };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/projects`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 401) {
+        removeAuthToken();
+        return { error: 'Session expired. Please login again.' };
+      }
+      return { error: error.detail || 'Failed to fetch projects' };
+    }
+
+    const data = await response.json();
+    console.log('Backend fetchVendorProjects response:', data);
+
+    // Handle both array and wrapped responses
+    if (Array.isArray(data)) {
+      return { data };
+    }
+    if (data.data && Array.isArray(data.data)) {
+      return { data: data.data };
+    }
+
+    return { data: [] };
+  } catch (error) {
+    console.error('fetchVendorProjects error:', error);
+    return { error: 'Network error. Please try again.' };
+  }
+};
+
+// Fetch project details - GET /projects/{project_id}/details
+export const fetchProjectDetails = async (projectId: string): Promise<ApiResponse<ProjectDetailsResponse>> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      return { error: 'Authentication required. Please login again.' };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/details`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 401) {
+        removeAuthToken();
+        return { error: 'Session expired. Please login again.' };
+      }
+      return { error: error.detail || 'Failed to fetch project details' };
+    }
+
+    const data: ProjectDetailsResponse = await response.json();
+    console.log('Backend fetchProjectDetails response:', data);
+
+    return { data };
+  } catch (error) {
+    console.error('fetchProjectDetails error:', error);
+    return { error: 'Network error. Please try again.' };
+  }
+};

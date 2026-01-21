@@ -28,21 +28,28 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
 } from '@/components/ui/chart';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import Logo from '@/components/Logo';
 import StatusBadge from '@/components/StatusBadge';
-import ProjectList from '@/components/vendor/ProjectList';
+import BackendProjectList from '@/components/vendor/BackendProjectList';
 import RateCardView from '@/components/vendor/RateCardView';
 import CreateProjectWizard from '@/components/vendor/CreateProjectWizard';
-import { useVendor, ProjectData } from '@/contexts/VendorContext';
+import { useVendor } from '@/contexts/VendorContext';
 import { toast } from '@/hooks/use-toast';
+import { removeAuthToken } from '@/services/authApi';
 
 const VendorDashboard = () => {
   const navigate = useNavigate();
-  const { currentVendor, setCurrentVendor, projects, calls, rateCards } = useVendor();
+  const { 
+    currentVendor, 
+    setCurrentVendor, 
+    rateCards,
+    backendProjects,
+    backendProjectsLoading,
+    backendProjectsError,
+    loadBackendProjects,
+  } = useVendor();
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
 
   useEffect(() => {
@@ -51,17 +58,20 @@ const VendorDashboard = () => {
     }
   }, [currentVendor, navigate]);
 
+  // Load projects on mount if not already loaded
+  useEffect(() => {
+    if (currentVendor && backendProjects.length === 0 && !backendProjectsLoading) {
+      loadBackendProjects();
+    }
+  }, [currentVendor, backendProjects.length, backendProjectsLoading, loadBackendProjects]);
+
   if (!currentVendor) {
     return null;
   }
 
-  const vendorProjects = projects.filter((p) => p.vendorId === currentVendor.id);
-  const vendorCalls = calls.filter((c) => 
-    vendorProjects.some((p) => p.id === c.projectId)
-  );
-
   const handleLogout = () => {
     setCurrentVendor(null);
+    removeAuthToken();
     toast({
       title: 'Logged out',
       description: 'You have been successfully logged out.',
@@ -69,57 +79,49 @@ const VendorDashboard = () => {
     navigate('/login');
   };
 
-  const handleViewProject = (project: ProjectData) => {
-    toast({
-      title: project.name,
-      description: `Total calls: ${project.totalCalls}, Amount: ₹${project.totalAmount.toLocaleString()}`,
-    });
+  const handleProjectCreated = () => {
+    // Refresh project list after creating a new project
+    loadBackendProjects();
   };
 
-  const pendingCalls = vendorCalls.filter(c => c.status === 'pending').length;
-  const assignedCalls = vendorCalls.filter(c => c.status === 'assigned').length;
-  const completedCalls = vendorCalls.filter(c => c.status === 'completed').length;
-  const totalAmount = vendorCalls.reduce((sum, c) => sum + c.assetsCount * 100, 0);
+  // Calculate stats from backend projects
+  const totalProjects = backendProjects.length;
+  const activeProjects = backendProjects.filter(p => 
+    p.status.toUpperCase() === 'ACTIVE' || p.status.toUpperCase() === 'APPROVED'
+  ).length;
 
   const stats = [
     {
       title: 'Total Projects',
-      value: vendorProjects.length.toString(),
-      change: `${vendorProjects.filter(p => p.status === 'active').length} active`,
+      value: totalProjects.toString(),
+      change: `${activeProjects} active`,
       icon: BarChart3,
       color: 'text-primary',
       bgColor: 'bg-primary/10',
     },
     {
-      title: 'Total Calls',
-      value: vendorCalls.length.toString(),
-      change: `${completedCalls} completed`,
+      title: 'Backend Projects',
+      value: backendProjects.length.toString(),
+      change: 'From server',
       icon: FileSpreadsheet,
       color: 'text-success',
       bgColor: 'bg-success/10',
     },
     {
-      title: 'Total Amount',
-      value: `₹${(totalAmount / 1000).toFixed(1)}K`,
-      change: 'All projects',
+      title: 'Status',
+      value: backendProjectsLoading ? 'Loading...' : 'Synced',
+      change: 'Real-time data',
       icon: IndianRupee,
       color: 'text-primary',
       bgColor: 'bg-primary/10',
     },
   ];
 
-  // Pie chart data for call status distribution
+  // Pie chart placeholder
   const pieChartData = [
-    { name: 'Pending', value: pendingCalls, fill: 'hsl(38, 92%, 50%)' },
-    { name: 'Assigned', value: assignedCalls, fill: 'hsl(189, 60%, 57%)' },
-    { name: 'Completed', value: completedCalls, fill: 'hsl(142, 72%, 40%)' },
+    { name: 'Active', value: activeProjects, fill: 'hsl(142, 72%, 40%)' },
+    { name: 'Other', value: Math.max(0, totalProjects - activeProjects), fill: 'hsl(38, 92%, 50%)' },
   ].filter(item => item.value > 0);
-
-  const pieChartConfig = {
-    pending: { label: 'Pending', color: 'hsl(38, 92%, 50%)' },
-    assigned: { label: 'Assigned', color: 'hsl(189, 60%, 57%)' },
-    completed: { label: 'Completed', color: 'hsl(142, 72%, 40%)' },
-  };
 
   const getInitials = (name: string) => {
     return name
@@ -340,10 +342,11 @@ const VendorDashboard = () => {
           </TabsList>
 
           <TabsContent value="projects">
-            <ProjectList 
-              projects={vendorProjects}
-              calls={vendorCalls}
-              onViewProject={handleViewProject}
+            <BackendProjectList
+              projects={backendProjects}
+              loading={backendProjectsLoading}
+              error={backendProjectsError}
+              onRefresh={loadBackendProjects}
             />
           </TabsContent>
 
@@ -356,7 +359,10 @@ const VendorDashboard = () => {
       {/* Dialogs */}
       <CreateProjectWizard 
         open={createProjectOpen} 
-        onOpenChange={setCreateProjectOpen} 
+        onOpenChange={(open) => {
+          setCreateProjectOpen(open);
+          if (!open) loadBackendProjects(); // Refresh when wizard closes
+        }}
       />
     </div>
   );
