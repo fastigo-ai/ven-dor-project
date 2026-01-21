@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import { 
+  fetchVendorProjects, 
+  fetchProjectDetails, 
+  BackendProject, 
+  ProjectDetailsResponse, 
+  ProjectCallRow 
+} from '@/services/projectApi';
 
 export type SupportType = 'pm activity' | 'breakfix' | 'on call';
 
@@ -57,6 +64,24 @@ export interface VendorData {
   createdAt: Date;
 }
 
+// Backend project converted to frontend format
+export interface BackendProjectData {
+  id: string;
+  projectName: string;
+  supportType: string;
+  l1SupportName: string;
+  l1SupportNumber: string;
+  status: string;
+  sla?: { priority: string; response_time_minutes: number } | null;
+  createdAt: string;
+  activatedAt?: string | null;
+  vendorId: string;
+  // Summary data (fetched from details)
+  activeCalls?: number;
+  totalCalls?: number;
+  totalCost?: number;
+}
+
 interface VendorContextType {
   currentEmail: string;
   setCurrentEmail: (email: string) => void;
@@ -69,6 +94,8 @@ interface VendorContextType {
   setCurrentVendor: (vendor: VendorData | null) => void;
   setVendorPassword: (email: string, password: string) => void;
   getVendorPassword: (email: string) => string | undefined;
+  
+  // Legacy local projects (for backward compatibility)
   projects: ProjectData[];
   addProject: (project: Omit<ProjectData, 'id' | 'createdAt' | 'totalCalls' | 'completedCalls' | 'totalAmount'>) => ProjectData;
   updateProject: (id: string, updates: Partial<ProjectData>) => void;
@@ -78,6 +105,22 @@ interface VendorContextType {
   deleteCall: (callId: string) => void;
   rateCards: RateCard[];
   updateRateCard: (id: string, updates: Partial<RateCard>) => void;
+
+  // Backend projects state
+  backendProjects: BackendProjectData[];
+  backendProjectsLoading: boolean;
+  backendProjectsError: string | null;
+  loadBackendProjects: () => Promise<void>;
+  
+  // Selected project details
+  selectedProjectDetails: ProjectDetailsResponse | null;
+  selectedProjectLoading: boolean;
+  selectedProjectError: string | null;
+  loadProjectDetails: (projectId: string) => Promise<ProjectDetailsResponse | null>;
+  clearSelectedProject: () => void;
+  
+  // Add new project to backend list (after creation)
+  addBackendProject: (project: BackendProjectData) => void;
 }
 
 const VendorContext = createContext<VendorContextType | undefined>(undefined);
@@ -248,6 +291,16 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
   const [calls, setCalls] = useState<CallData[]>(initialCalls);
   const [rateCards, setRateCards] = useState<RateCard[]>(initialRateCards);
 
+  // Backend projects state
+  const [backendProjects, setBackendProjects] = useState<BackendProjectData[]>([]);
+  const [backendProjectsLoading, setBackendProjectsLoading] = useState(false);
+  const [backendProjectsError, setBackendProjectsError] = useState<string | null>(null);
+
+  // Selected project details state
+  const [selectedProjectDetails, setSelectedProjectDetails] = useState<ProjectDetailsResponse | null>(null);
+  const [selectedProjectLoading, setSelectedProjectLoading] = useState(false);
+  const [selectedProjectError, setSelectedProjectError] = useState<string | null>(null);
+
   const addVendor = (vendorData: Omit<VendorData, 'id' | 'createdAt' | 'status'>) => {
     const newVendor: VendorData = {
       ...vendorData,
@@ -377,6 +430,78 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
+  // Fetch all projects from backend
+  const loadBackendProjects = useCallback(async () => {
+    setBackendProjectsLoading(true);
+    setBackendProjectsError(null);
+    
+    try {
+      const response = await fetchVendorProjects();
+      
+      if (response.error) {
+        setBackendProjectsError(response.error);
+        return;
+      }
+      
+      if (response.data) {
+        const converted: BackendProjectData[] = response.data.map((p) => ({
+          id: p._id || p.project_id || '',
+          projectName: p.project_name,
+          supportType: p.support_type,
+          l1SupportName: p.l1_support_name,
+          l1SupportNumber: p.l1_support_number,
+          status: p.status,
+          sla: p.sla,
+          createdAt: p.created_at,
+          activatedAt: p.activated_at,
+          vendorId: p.vendor_id,
+        }));
+        setBackendProjects(converted);
+      }
+    } catch (err) {
+      setBackendProjectsError('Failed to load projects');
+    } finally {
+      setBackendProjectsLoading(false);
+    }
+  }, []);
+
+  // Fetch single project details from backend
+  const loadProjectDetails = useCallback(async (projectId: string): Promise<ProjectDetailsResponse | null> => {
+    setSelectedProjectLoading(true);
+    setSelectedProjectError(null);
+    
+    try {
+      const response = await fetchProjectDetails(projectId);
+      
+      if (response.error) {
+        setSelectedProjectError(response.error);
+        return null;
+      }
+      
+      if (response.data) {
+        setSelectedProjectDetails(response.data);
+        return response.data;
+      }
+      
+      return null;
+    } catch (err) {
+      setSelectedProjectError('Failed to load project details');
+      return null;
+    } finally {
+      setSelectedProjectLoading(false);
+    }
+  }, []);
+
+  const clearSelectedProject = useCallback(() => {
+    setSelectedProjectDetails(null);
+    setSelectedProjectError(null);
+  }, []);
+
+  // Add a new project to backend list (after creation via wizard)
+  const addBackendProject = useCallback((project: BackendProjectData) => {
+    setBackendProjects((prev) => [...prev, project]);
+  }, []);
+
   return (
     <VendorContext.Provider
       value={{
@@ -400,6 +525,18 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
         deleteCall,
         rateCards,
         updateRateCard,
+        // Backend projects
+        backendProjects,
+        backendProjectsLoading,
+        backendProjectsError,
+        loadBackendProjects,
+        // Selected project details
+        selectedProjectDetails,
+        selectedProjectLoading,
+        selectedProjectError,
+        loadProjectDetails,
+        clearSelectedProject,
+        addBackendProject,
       }}
     >
       {children}

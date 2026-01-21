@@ -22,7 +22,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 const Login = () => {
   const navigate = useNavigate();
-  const { setCurrentVendor } = useVendor();
+  const { setCurrentVendor, loadBackendProjects } = useVendor();
   const [showPassword, setShowPassword] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{
     type: 'pending' | 'rejected' | 'error';
@@ -99,6 +99,9 @@ const Login = () => {
         createdAt: new Date(),
       });
     }
+
+    // Fetch vendor's projects from backend
+    await loadBackendProjects();
 
     toast({
       title: 'Welcome back!',
