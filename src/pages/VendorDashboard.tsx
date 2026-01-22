@@ -58,12 +58,13 @@ const VendorDashboard = () => {
     }
   }, [currentVendor, navigate]);
 
-  // Load projects on mount if not already loaded
+  // Always load projects on mount to ensure persistence
   useEffect(() => {
-    if (currentVendor && backendProjects.length === 0 && !backendProjectsLoading) {
+    if (currentVendor && !backendProjectsLoading) {
       loadBackendProjects();
     }
-  }, [currentVendor, backendProjects.length, backendProjectsLoading, loadBackendProjects]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentVendor]);
 
   if (!currentVendor) {
     return null;
