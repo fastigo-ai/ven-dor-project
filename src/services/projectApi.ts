@@ -290,12 +290,12 @@ export const validateProjectAddresses = async (projectId: string): Promise<ApiRe
 
 // Backend project response shape
 export interface BackendProject {
-  _id: string;
+  _id?: string;
   project_id?: string;
   project_name: string;
   support_type: string;
-  l1_support_name: string;
-  l1_support_number: string;
+  l1_support_name?: string;
+  l1_support_number?: string;
   status: string;
   sla?: {
     priority: string;
@@ -303,7 +303,11 @@ export interface BackendProject {
   } | null;
   created_at: string;
   activated_at?: string | null;
-  vendor_id: string;
+  vendor_id?: string;
+  // Summary fields (may come from list endpoint)
+  active_calls?: number;
+  total_calls?: number;
+  total_cost?: number;
 }
 
 // Project details response shape (from GET /projects/{id}/details)
