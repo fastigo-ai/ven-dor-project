@@ -445,16 +445,19 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
       
       if (response.data) {
         const converted: BackendProjectData[] = response.data.map((p) => ({
-          id: p._id || p.project_id || '',
+          id: p.project_id || p._id || '',
           projectName: p.project_name,
           supportType: p.support_type,
-          l1SupportName: p.l1_support_name,
-          l1SupportNumber: p.l1_support_number,
+          l1SupportName: p.l1_support_name || '',
+          l1SupportNumber: p.l1_support_number || '',
           status: p.status,
           sla: p.sla,
           createdAt: p.created_at,
           activatedAt: p.activated_at,
-          vendorId: p.vendor_id,
+          vendorId: p.vendor_id || '',
+          activeCalls: p.active_calls,
+          totalCalls: p.total_calls,
+          totalCost: p.total_cost,
         }));
         setBackendProjects(converted);
       }
