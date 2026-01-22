@@ -90,6 +90,11 @@ const VendorDashboard = () => {
   const activeProjects = backendProjects.filter(p => 
     p.status.toUpperCase() === 'ACTIVE' || p.status.toUpperCase() === 'APPROVED'
   ).length;
+  
+  // Sum total calls and total cost from all projects
+  const totalCalls = backendProjects.reduce((sum, p) => sum + (p.totalCalls ?? 0), 0);
+  const totalAmount = backendProjects.reduce((sum, p) => sum + (p.totalCost ?? 0), 0);
+  const totalActiveCalls = backendProjects.reduce((sum, p) => sum + (p.activeCalls ?? 0), 0);
 
   const stats = [
     {
@@ -101,28 +106,28 @@ const VendorDashboard = () => {
       bgColor: 'bg-primary/10',
     },
     {
-      title: 'Backend Projects',
-      value: backendProjects.length.toString(),
-      change: 'From server',
+      title: 'Total Calls',
+      value: totalCalls.toString(),
+      change: `${totalActiveCalls} active`,
       icon: FileSpreadsheet,
       color: 'text-success',
       bgColor: 'bg-success/10',
     },
     {
-      title: 'Status',
-      value: backendProjectsLoading ? 'Loading...' : 'Synced',
-      change: 'Real-time data',
+      title: 'Total Amount',
+      value: totalAmount > 0 ? `₹${(totalAmount / 1000).toFixed(1)}K` : '₹0',
+      change: 'Project value',
       icon: IndianRupee,
       color: 'text-primary',
       bgColor: 'bg-primary/10',
     },
   ];
 
-  // Pie chart placeholder
-  const pieChartData = [
-    { name: 'Active', value: activeProjects, fill: 'hsl(142, 72%, 40%)' },
-    { name: 'Other', value: Math.max(0, totalProjects - activeProjects), fill: 'hsl(38, 92%, 50%)' },
-  ].filter(item => item.value > 0);
+  // Pie chart for call status overview
+  const pieChartData = totalCalls > 0 ? [
+    { name: 'Active Calls', value: totalActiveCalls, fill: 'hsl(142, 72%, 40%)' },
+    { name: 'Other Calls', value: Math.max(0, totalCalls - totalActiveCalls), fill: 'hsl(38, 92%, 50%)' },
+  ].filter(item => item.value > 0) : [];
 
   const getInitials = (name: string) => {
     return name
@@ -348,6 +353,7 @@ const VendorDashboard = () => {
               loading={backendProjectsLoading}
               error={backendProjectsError}
               onRefresh={loadBackendProjects}
+              onCreateProject={() => setCreateProjectOpen(true)}
             />
           </TabsContent>
 

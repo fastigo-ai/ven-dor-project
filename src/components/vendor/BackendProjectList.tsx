@@ -32,6 +32,7 @@ interface BackendProjectListProps {
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
+  onCreateProject?: () => void;
 }
 
 const statusColors: Record<string, string> = {
@@ -44,7 +45,7 @@ const statusColors: Record<string, string> = {
   DRAFT: 'bg-muted/50 text-muted-foreground border-muted',
 };
 
-const BackendProjectList = ({ projects, loading, error, onRefresh }: BackendProjectListProps) => {
+const BackendProjectList = ({ projects, loading, error, onRefresh, onCreateProject }: BackendProjectListProps) => {
   const { loadProjectDetails, selectedProjectDetails, selectedProjectLoading } = useVendor();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<BackendProjectData | null>(null);
@@ -129,9 +130,12 @@ const BackendProjectList = ({ projects, loading, error, onRefresh }: BackendProj
         <CardContent className="flex flex-col items-center justify-center py-12">
           <FolderOpen className="h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium text-foreground mb-1">No Projects Yet</h3>
-          <p className="text-sm text-muted-foreground text-center">
+          <p className="text-sm text-muted-foreground text-center mb-4">
             Create your first project to start managing delivery calls
           </p>
+          <Button onClick={onCreateProject} variant="default">
+            Create New Project
+          </Button>
         </CardContent>
       </Card>
     );
