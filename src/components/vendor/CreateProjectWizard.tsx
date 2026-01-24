@@ -351,16 +351,19 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
         description: 'Attaching SLA configuration...',
       });
 
-      // Step 2: Attach SLA to project
-      if (slaPriority && slaResponseTime && slaResolutionTime && slaBreachPenalty && slaEscalationTime) {
-        const slaResult = await attachSlaToProject(projectId, {
+      // Step 2: Attach SLA to project with fixed values for some fields
+      if (slaPriority && slaResponseTime) {
+        const slaPayload = {
           priority: slaPriority,
           response_time_minutes: parseInt(slaResponseTime),
-          resolution_time_minutes: parseInt(slaResolutionTime),
-          breach_penalty: parseFloat(slaBreachPenalty),
-          escalation_time_minutes: parseInt(slaEscalationTime),
-          description: slaDescription || 'Standard SLA',
-        });
+          resolution_time_minutes: 1440,      // Fixed: 24 hours
+          breach_penalty: 500,                 // Fixed: ₹500
+          escalation_time_minutes: 900,        // Fixed: 15 hours
+          description: problemDescription || 'Standard SLA',
+        };
+        console.log('Sending SLA payload:', slaPayload);
+        
+        const slaResult = await attachSlaToProject(projectId, slaPayload);
         if (slaResult.error) {
           console.warn('SLA attachment failed:', slaResult.error);
           toast({
