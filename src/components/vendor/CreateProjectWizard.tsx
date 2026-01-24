@@ -44,7 +44,18 @@ import {
   AlertCircle,
   Check,
   Pause,
+  Loader2,
 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const supportTypes = [
   'pm activity',
@@ -109,7 +120,7 @@ interface CreateProjectWizardProps {
 type UploadType = 'bulk' | 'single' | null;
 
 const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) => {
-  const { currentVendor, addProject, addCalls, rateCards } = useVendor();
+  const { currentVendor, addProject, addCalls, rateCards, loadBackendProjects } = useVendor();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isValidatingAddresses, setIsValidatingAddresses] = useState(false);
@@ -135,8 +146,14 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
   // Step 3 data - validated locations
   const [locationAnalysis, setLocationAnalysis] = useState<LocationWithStatus[]>([]);
   
+  // Step 4 data - Cost from backend
+  const [backendTotalCost, setBackendTotalCost] = useState<number | null>(null);
+  const [isFetchingCost, setIsFetchingCost] = useState(false);
+  
   // Step 5 data
   const [projectStatus, setProjectStatus] = useState<'approved' | 'on-hold' | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
   
   const {
     register,
@@ -460,56 +477,95 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
     ? Math.round(totalServiceableValue / serviceableLocations.length) 
     : 0;
 
-  const handleFinalSubmit = () => {
+  // Fetch cost summary from backend when entering Step 4
+  const handleGoToStep4 = async () => {
+    if (!apiProjectId) {
+      // No API project, use local calculation
+      setCurrentStep(4);
+      return;
+    }
+
+    setIsFetchingCost(true);
+    try {
+      const projectApi = await import('@/services/projectApi');
+      const { getProjectCostSummary } = projectApi;
+      
+      const result = await getProjectCostSummary(apiProjectId);
+      if (result.error) {
+        console.warn('Failed to fetch cost summary:', result.error);
+        toast({
+          title: 'Warning',
+          description: 'Could not fetch cost from server. Using local calculation.',
+          variant: 'destructive',
+        });
+      } else if (result.data) {
+        setBackendTotalCost(result.data.total_cost);
+      }
+    } catch (error) {
+      console.error('Cost summary error:', error);
+    } finally {
+      setIsFetchingCost(false);
+      setCurrentStep(4);
+    }
+  };
+
+  const handleFinalSubmit = async () => {
     if (!projectData || !currentVendor || !projectStatus) return;
 
-    setIsSubmitting(true);
-    try {
-      // Create project
-      const newProject = addProject({
-        vendorId: currentVendor.id,
-        name: projectData.name,
-        supportType: projectData.supportType,
-        l1SupportName: projectData.l1SupportName,
-        l1SupportNumber: projectData.l1SupportNumber,
-        status: projectStatus === 'approved' ? 'active' : 'on-hold',
+    // If Hold selected, just close without API call
+    if (projectStatus === 'on-hold') {
+      toast({
+        title: 'Project On Hold',
+        description: `Project "${projectData.name}" has been placed on hold for review.`,
       });
+      handleClose();
+      return;
+    }
 
-      // Add serviceable calls to the project
-      if (projectStatus === 'approved' && serviceableLocations.length > 0) {
-        const callsToAdd = serviceableLocations.map((call) => ({
-          stateName: call.stateName,
-          branchName: call.branchName,
-          branchCategory: call.branchCategory,
-          branchCode: call.branchCode,
-          address: call.address,
-          pincode: call.pincode,
-          contactName: call.contactName,
-          contactPhone: call.contactPhone,
-          assetsCount: call.assetsCount,
-          supportType: call.supportType,
-          assetType: call.assetType,
-          projectId: newProject.id,
-        }));
-        addCalls(callsToAdd, newProject.id);
+    // If Accept selected, show confirmation dialog
+    setShowConfirmDialog(true);
+  };
+
+  const handleConfirmActivation = async () => {
+    if (!projectData || !apiProjectId) return;
+    
+    setShowConfirmDialog(false);
+    setIsActivating(true);
+    
+    try {
+      const projectApi = await import('@/services/projectApi');
+      const { activateProject } = projectApi;
+      
+      const result = await activateProject(apiProjectId);
+      
+      if (result.error) {
+        toast({
+          title: 'Activation Failed',
+          description: result.error,
+          variant: 'destructive',
+        });
+        setIsActivating(false);
+        return;
       }
 
       toast({
-        title: projectStatus === 'approved' ? 'Project Approved' : 'Project On Hold',
-        description: projectStatus === 'approved' 
-          ? `Project "${projectData.name}" has been created with ${serviceableLocations.length} serviceable locations.`
-          : `Project "${projectData.name}" has been placed on hold for review.`,
+        title: 'Project Activated',
+        description: `Project "${projectData.name}" has been approved and activated successfully!`,
       });
 
+      // Refresh project list
+      loadBackendProjects?.();
+      
       handleClose();
     } catch (error) {
+      console.error('Activation error:', error);
       toast({
         title: 'Error',
-        description: 'Failed to create project. Please try again.',
+        description: 'Failed to activate project. Please try again.',
         variant: 'destructive',
       });
     } finally {
-      setIsSubmitting(false);
+      setIsActivating(false);
     }
   };
 
@@ -527,6 +583,10 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
     setProjectStatus(null);
     setApiProjectId(null);
     setIsValidatingAddresses(false);
+    setBackendTotalCost(null);
+    setIsFetchingCost(false);
+    setShowConfirmDialog(false);
+    setIsActivating(false);
     reset();
     onOpenChange(false);
   };
@@ -938,84 +998,75 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
           {/* Step 4: Cost Summary */}
           {currentStep === 4 && (
             <div className="space-y-4 py-4">
-              {/* Summary Card */}
-              <Card className="bg-primary/5 border-primary/30">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <IndianRupee className="h-4 w-4 text-primary" />
-                    Cost Summary
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-                    <div className="text-center p-3 sm:p-4 bg-background rounded-lg">
-                      <p className="text-2xl sm:text-3xl font-bold text-primary">{serviceableLocations.length}</p>
-                      <p className="text-xs sm:text-sm text-muted-foreground">Total Records</p>
-                    </div>
-                    <div className="text-center p-3 sm:p-4 bg-background rounded-lg">
-                      <p className="text-2xl sm:text-3xl font-bold text-primary">₹{ratePerRecord}</p>
-                      <p className="text-xs sm:text-sm text-muted-foreground">Rate/Record</p>
-                    </div>
-                    <div className="text-center p-3 sm:p-4 bg-background rounded-lg">
-                      <p className="text-2xl sm:text-3xl font-bold text-primary">₹{totalServiceableValue.toLocaleString()}</p>
-                      <p className="text-xs sm:text-sm text-muted-foreground">Total Amount</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Rate Card Info */}
-              {applicableRate && (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Truck className="h-4 w-4 text-primary" />
-                      Applied Rate Card
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-3 gap-2 sm:gap-4 text-sm">
-                      <div>
-                        <p className="text-muted-foreground text-[10px] sm:text-xs">Base Rate</p>
-                        <p className="font-mono font-semibold text-xs sm:text-sm">₹{applicableRate.baseRate}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground text-[10px] sm:text-xs">Per KM Rate</p>
-                        <p className="font-mono font-semibold text-xs sm:text-sm">₹{applicableRate.perKmRate}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground text-[10px] sm:text-xs">Urgent Multiplier</p>
-                        <p className="font-mono font-semibold text-xs sm:text-sm">{applicableRate.urgentMultiplier}×</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+              {/* Loading State */}
+              {isFetchingCost && (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <span className="ml-3 text-muted-foreground">Fetching cost summary...</span>
+                </div>
               )}
 
-              {/* Project Details Recap */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Package className="h-4 w-4 text-primary" />
-                    Project Details
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Project Name</span>
-                    <span className="font-medium">{projectData?.name}</span>
+              {/* Summary Card */}
+              {!isFetchingCost && (
+                <>
+                  <Card className="bg-primary/5 border-primary/30">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <IndianRupee className="h-4 w-4 text-primary" />
+                        Cost Summary
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <div className="text-center p-3 sm:p-4 bg-background rounded-lg">
+                          <p className="text-2xl sm:text-3xl font-bold text-primary">{serviceableLocations.length}</p>
+                          <p className="text-xs sm:text-sm text-muted-foreground">Serviceable Locations</p>
+                        </div>
+                        <div className="text-center p-3 sm:p-4 bg-background rounded-lg border-2 border-primary/30">
+                          <p className="text-2xl sm:text-3xl font-bold text-primary">
+                            ₹{(backendTotalCost ?? totalServiceableValue).toLocaleString()}
+                          </p>
+                          <p className="text-xs sm:text-sm text-muted-foreground">Total Value</p>
+                          {backendTotalCost !== null && (
+                            <p className="text-[10px] text-muted-foreground mt-1">(from server)</p>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Project Details Recap */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Package className="h-4 w-4 text-primary" />
+                        Project Details
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Project Name</span>
+                        <span className="font-medium">{projectData?.name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Support Type</span>
+                        <Badge variant="outline">{projectData?.supportType}</Badge>
+                      </div>
+                      <Separator />
+                      <div>
+                        <p className="text-muted-foreground text-sm mb-1">Problem Description</p>
+                        <p className="text-sm bg-muted/50 rounded p-2">{problemDescription}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Read-only notice */}
+                  <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg text-sm text-muted-foreground">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>This is a read-only summary. Proceed to approval to finalize.</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Support Type</span>
-                    <Badge variant="outline">{projectData?.supportType}</Badge>
-                  </div>
-                  <Separator />
-                  <div>
-                    <p className="text-muted-foreground text-sm mb-1">Problem Description</p>
-                    <p className="text-sm bg-muted/50 rounded p-2">{problemDescription}</p>
-                  </div>
-                </CardContent>
-              </Card>
+                </>
+              )}
             </div>
           )}
 
@@ -1050,7 +1101,9 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
                     </div>
                     <div>
                       <p className="text-muted-foreground">Total Value</p>
-                      <p className="font-medium text-primary">₹{totalServiceableValue.toLocaleString()}</p>
+                      <p className="font-medium text-primary">
+                        ₹{(backendTotalCost ?? totalServiceableValue).toLocaleString()}
+                      </p>
                     </div>
                   </div>
                 </CardContent>
@@ -1128,9 +1181,18 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back
               </Button>
-              <Button className="flex-1" onClick={() => setCurrentStep(4)}>
-                View Cost Summary
-                <ArrowRight className="h-4 w-4 ml-2" />
+              <Button className="flex-1" onClick={handleGoToStep4} disabled={isFetchingCost}>
+                {isFetchingCost ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    View Cost Summary
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </>
+                )}
               </Button>
             </div>
           )}
@@ -1148,20 +1210,68 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
           )}
           {currentStep === 5 && (
             <div className="flex gap-3">
-              <Button type="button" variant="outline" className="flex-1" onClick={goBack}>
+              <Button type="button" variant="outline" className="flex-1" onClick={goBack} disabled={isActivating}>
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back
               </Button>
               <Button 
                 className="flex-1" 
-                disabled={!projectStatus || isSubmitting}
+                disabled={!projectStatus || isActivating}
                 onClick={handleFinalSubmit}
               >
-                {isSubmitting ? 'Submitting...' : 'Submit Project'}
+                {isActivating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Activating...
+                  </>
+                ) : (
+                  'Submit Project'
+                )}
               </Button>
             </div>
           )}
         </div>
+
+        {/* Confirmation Dialog for Activation */}
+        <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirm Project Activation</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to activate this project? This action is final and cannot be undone.
+                <div className="mt-3 p-3 bg-muted rounded-lg text-sm">
+                  <div className="flex justify-between mb-1">
+                    <span>Project:</span>
+                    <span className="font-medium">{projectData?.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Total Value:</span>
+                    <span className="font-medium text-primary">
+                      ₹{(backendTotalCost ?? totalServiceableValue).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isActivating}>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleConfirmActivation}
+                disabled={isActivating}
+                className="bg-primary"
+              >
+                {isActivating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Activating...
+                  </>
+                ) : (
+                  'Accept & Submit'
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
