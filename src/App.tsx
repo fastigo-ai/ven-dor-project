@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { VendorProvider } from "./contexts/VendorContext";
+import AuthLoader from "./components/AuthLoader";
 import Index from "./pages/Index";
 import EmailStep from "./pages/register/EmailStep";
 import VerifyStep from "./pages/register/VerifyStep";
@@ -23,23 +24,25 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <VendorProvider>
-        <Toaster />
-        <Sonner />
         <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/dashboard" element={<VendorDashboard />} />
-            <Route path="/register" element={<EmailStep />} />
-            <Route path="/register/verify" element={<VerifyStep />} />
-            <Route path="/register/password" element={<PasswordStep />} />
-            <Route path="/register/company" element={<CompanyStep />} />
-            <Route path="/pending" element={<PendingApproval />} />
-            <Route path="/admin/login" element={<AdminLogin />} />
-            <Route path="/admin" element={<AdminPanel />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <AuthLoader>
+            <Toaster />
+            <Sonner />
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/dashboard" element={<VendorDashboard />} />
+              <Route path="/register" element={<EmailStep />} />
+              <Route path="/register/verify" element={<VerifyStep />} />
+              <Route path="/register/password" element={<PasswordStep />} />
+              <Route path="/register/company" element={<CompanyStep />} />
+              <Route path="/pending" element={<PendingApproval />} />
+              <Route path="/admin/login" element={<AdminLogin />} />
+              <Route path="/admin" element={<AdminPanel />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </AuthLoader>
         </BrowserRouter>
       </VendorProvider>
     </TooltipProvider>
