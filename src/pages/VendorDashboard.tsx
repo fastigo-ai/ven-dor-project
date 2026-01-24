@@ -52,13 +52,7 @@ const VendorDashboard = () => {
   } = useVendor();
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
 
-  useEffect(() => {
-    if (!currentVendor || currentVendor.status !== 'approved') {
-      navigate('/login');
-    }
-  }, [currentVendor, navigate]);
-
-  // Always load projects on mount to ensure persistence
+  // Load projects on mount - AuthLoader handles auth rehydration
   useEffect(() => {
     if (currentVendor && !backendProjectsLoading) {
       loadBackendProjects();
@@ -66,7 +60,14 @@ const VendorDashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentVendor]);
 
+  // Show loading while auth is being verified
   if (!currentVendor) {
+    return null;
+  }
+
+  // Redirect non-approved vendors
+  if (currentVendor.status !== 'approved') {
+    navigate('/login');
     return null;
   }
 
