@@ -339,19 +339,19 @@ export interface ProjectCallRow {
   call_id: string;
   branch_name: string;
   branch_code: string;
-  address: string;
+  address: string | null;
   pincode: string;
   asset_type: string;
   support_type: string;
   asset_count: number;
   sla_priority?: string;
   status: string;
-  engineer_name?: string;
-  engineer_contact?: string;
-  distance_km?: number;
+  engineer_name?: string | null;
+  engineer_contact?: string | null;
+  distance_km?: number | null;
   serviceable: boolean;
   created_at: string;
-  assigned_at?: string;
+  assigned_at?: string | null;
 }
 
 // Fetch all projects for vendor - GET /projects

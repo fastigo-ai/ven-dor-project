@@ -286,11 +286,21 @@ const BackendProjectDetailsDialog = ({
                             <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                               <div className="flex items-center gap-1">
                                 <Wrench className="h-3 w-3" />
-                                {call.asset_type} ({call.asset_count} assets)
+                                {call.asset_type || 'N/A'} ({call.asset_count ?? 0} assets)
                               </div>
                               <div className="flex items-center gap-1">
                                 <Clock className="h-3 w-3" />
-                                {call.support_type}
+                                {call.support_type || 'N/A'}
+                              </div>
+                              {call.sla_priority && (
+                                <div className="flex items-center gap-1">
+                                  <AlertCircle className="h-3 w-3" />
+                                  Priority: {call.sla_priority}
+                                </div>
+                              )}
+                              <div className="flex items-center gap-1">
+                                <CheckCircle className="h-3 w-3" />
+                                {call.serviceable ? 'Serviceable' : 'Not Serviceable'}
                               </div>
                               {call.engineer_name && (
                                 <div className="flex items-center gap-1">
@@ -298,7 +308,7 @@ const BackendProjectDetailsDialog = ({
                                   {call.engineer_name}
                                 </div>
                               )}
-                              {call.distance_km && (
+                              {call.distance_km != null && (
                                 <div className="flex items-center gap-1">
                                   <MapPin className="h-3 w-3" />
                                   {call.distance_km} km
@@ -307,7 +317,14 @@ const BackendProjectDetailsDialog = ({
                             </div>
                             <div className="flex items-start gap-1 mt-1 text-xs text-muted-foreground">
                               <MapPin className="h-3 w-3 mt-0.5 shrink-0" />
-                              <span className="line-clamp-1">{call.address} - {call.pincode}</span>
+                              <span className="line-clamp-1">
+                                {call.address || call.pincode ? (
+                                  <>
+                                    {call.address && <>{call.address} - </>}
+                                    {call.pincode || 'No Pincode'}
+                                  </>
+                                ) : 'No address available'}
+                              </span>
                             </div>
                           </div>
                         );
