@@ -113,6 +113,10 @@ export const uploadCallsBulk = async (file: File, projectId: string): Promise<Ap
 export interface SlaPayload {
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
   response_time_minutes: number;
+  resolution_time_minutes: number;
+  breach_penalty: number;
+  escalation_time_minutes: number;
+  description: string;
 }
 
 // Attach SLA to project - Backend returns { message }

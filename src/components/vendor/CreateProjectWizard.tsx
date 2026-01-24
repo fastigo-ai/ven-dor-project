@@ -139,6 +139,10 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
   // SLA data
   const [slaPriority, setSlaPriority] = useState<'HIGH' | 'MEDIUM' | 'LOW' | ''>('');
   const [slaResponseTime, setSlaResponseTime] = useState<string>('');
+  const [slaResolutionTime, setSlaResolutionTime] = useState<string>('');
+  const [slaBreachPenalty, setSlaBreachPenalty] = useState<string>('');
+  const [slaEscalationTime, setSlaEscalationTime] = useState<string>('');
+  const [slaDescription, setSlaDescription] = useState<string>('');
   
   // API project ID after creation
   const [apiProjectId, setApiProjectId] = useState<string | null>(null);
@@ -348,10 +352,14 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
       });
 
       // Step 2: Attach SLA to project
-      if (slaPriority && slaResponseTime) {
+      if (slaPriority && slaResponseTime && slaResolutionTime && slaBreachPenalty && slaEscalationTime) {
         const slaResult = await attachSlaToProject(projectId, {
           priority: slaPriority,
           response_time_minutes: parseInt(slaResponseTime),
+          resolution_time_minutes: parseInt(slaResolutionTime),
+          breach_penalty: parseFloat(slaBreachPenalty),
+          escalation_time_minutes: parseInt(slaEscalationTime),
+          description: slaDescription || 'Standard SLA',
         });
         if (slaResult.error) {
           console.warn('SLA attachment failed:', slaResult.error);
@@ -579,6 +587,10 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
     setProblemDescription('');
     setSlaPriority('');
     setSlaResponseTime('');
+    setSlaResolutionTime('');
+    setSlaBreachPenalty('');
+    setSlaEscalationTime('');
+    setSlaDescription('');
     setLocationAnalysis([]);
     setProjectStatus(null);
     setApiProjectId(null);
@@ -597,7 +609,7 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
     }
   };
 
-  const isStep2Valid = uploadType && parsedData.length > 0 && problemDescription.trim() && slaPriority && slaResponseTime && parseInt(slaResponseTime) > 0;
+  const isStep2Valid = uploadType && parsedData.length > 0 && problemDescription.trim() && slaPriority && slaResponseTime && parseInt(slaResponseTime) > 0 && slaResolutionTime && parseInt(slaResolutionTime) > 0 && slaBreachPenalty && parseFloat(slaBreachPenalty) >= 0 && slaEscalationTime && parseInt(slaEscalationTime) > 0;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -885,14 +897,61 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
                           id="slaResponseTime"
                           type="number"
                           min="1"
-                          placeholder="e.g., 120"
+                          placeholder="e.g., 720"
                           value={slaResponseTime}
                           onChange={(e) => setSlaResponseTime(e.target.value)}
                         />
                       </div>
                     </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="slaResolutionTime" className="text-xs text-muted-foreground">Resolution Time (minutes)</Label>
+                        <Input
+                          id="slaResolutionTime"
+                          type="number"
+                          min="1"
+                          placeholder="e.g., 1440"
+                          value={slaResolutionTime}
+                          onChange={(e) => setSlaResolutionTime(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="slaBreachPenalty" className="text-xs text-muted-foreground">Breach Penalty (₹)</Label>
+                        <Input
+                          id="slaBreachPenalty"
+                          type="number"
+                          min="0"
+                          placeholder="e.g., 500"
+                          value={slaBreachPenalty}
+                          onChange={(e) => setSlaBreachPenalty(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="slaEscalationTime" className="text-xs text-muted-foreground">Escalation Time (minutes)</Label>
+                        <Input
+                          id="slaEscalationTime"
+                          type="number"
+                          min="1"
+                          placeholder="e.g., 900"
+                          value={slaEscalationTime}
+                          onChange={(e) => setSlaEscalationTime(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="slaDescription" className="text-xs text-muted-foreground">Description (optional)</Label>
+                        <Input
+                          id="slaDescription"
+                          type="text"
+                          placeholder="e.g., Standard SLA"
+                          value={slaDescription}
+                          onChange={(e) => setSlaDescription(e.target.value)}
+                        />
+                      </div>
+                    </div>
                     <p className="text-xs text-muted-foreground">
-                      SLA defines the expected response time for service calls. Higher priority calls are processed first.
+                      SLA defines the expected response, resolution, and escalation times for service calls. Higher priority calls are processed first.
                     </p>
                   </CardContent>
                 </Card>
