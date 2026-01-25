@@ -16,6 +16,8 @@ import AdminLogin from "./pages/AdminLogin";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import VendorDashboard from "./pages/VendorDashboard";
+import VendorProjects from "./pages/VendorProjects";
+import ProjectDetails from "./pages/ProjectDetails";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +35,8 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/dashboard" element={<VendorDashboard />} />
+              <Route path="/projects" element={<VendorProjects />} />
+              <Route path="/projects/:projectId" element={<ProjectDetails />} />
               <Route path="/register" element={<EmailStep />} />
               <Route path="/register/verify" element={<VerifyStep />} />
               <Route path="/register/password" element={<PasswordStep />} />
