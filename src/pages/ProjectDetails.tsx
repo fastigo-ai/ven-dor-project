@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Table,
@@ -16,7 +15,25 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import Logo from '@/components/Logo';
+import { toast } from '@/hooks/use-toast';
+import {
+  holdCall,
+  resumeCall,
+  pauseProject,
+  resumeProject,
+  ProjectCallRow,
+} from '@/services/projectApi';
 import {
   ArrowLeft,
   FolderKanban,
@@ -34,8 +51,9 @@ import {
   AlertTriangle,
   Wrench,
   Hash,
-  Building,
-  Navigation,
+  Pause,
+  Play,
+  Loader2,
 } from 'lucide-react';
 
 const statusColors: Record<string, string> = {
@@ -44,15 +62,21 @@ const statusColors: Record<string, string> = {
   COMPLETED: 'bg-primary/10 text-primary border-primary/30',
   'ON-HOLD': 'bg-warning/10 text-warning border-warning/30',
   HOLD: 'bg-warning/10 text-warning border-warning/30',
-  PENDING: 'bg-warning/10 text-warning border-warning/30',
+  PAUSED: 'bg-warning/10 text-warning border-warning/30',
+  PENDING: 'bg-muted text-muted-foreground border-muted',
   DRAFT: 'bg-muted text-muted-foreground border-muted',
+  DISPATCHED: 'bg-primary/10 text-primary border-primary/30',
+  ASSIGNED: 'bg-success/10 text-success border-success/30',
 };
 
 const callStatusColors: Record<string, string> = {
   active: 'bg-success/10 text-success border-success/30',
-  pending: 'bg-warning/10 text-warning border-warning/30',
+  pending: 'bg-muted text-muted-foreground border-muted',
   completed: 'bg-primary/10 text-primary border-primary/30',
   cancelled: 'bg-destructive/10 text-destructive border-destructive/30',
+  hold: 'bg-warning/10 text-warning border-warning/30',
+  dispatched: 'bg-primary/10 text-primary border-primary/30',
+  assigned: 'bg-success/10 text-success border-success/30',
 };
 
 const callStatusIcons: Record<string, React.ReactNode> = {
@@ -60,6 +84,9 @@ const callStatusIcons: Record<string, React.ReactNode> = {
   pending: <Clock className="h-3 w-3" />,
   completed: <CheckCircle className="h-3 w-3" />,
   cancelled: <XCircle className="h-3 w-3" />,
+  hold: <Pause className="h-3 w-3" />,
+  dispatched: <Activity className="h-3 w-3" />,
+  assigned: <User className="h-3 w-3" />,
 };
 
 const supportTypeLabels: Record<string, { label: string; icon: React.ReactNode }> = {
@@ -83,6 +110,12 @@ const ProjectDetails = () => {
   } = useVendor();
 
   const [activeTab, setActiveTab] = useState('overview');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    type: 'pause' | 'resume' | 'holdCall' | 'resumeCall';
+    callId?: string;
+  }>({ open: false, type: 'pause' });
 
   // Find project from list for basic info
   const project = backendProjects.find(p => p.id === projectId);
@@ -100,6 +133,89 @@ const ProjectDetails = () => {
 
   const summary = details?.summary;
   const calls = details?.calls || [];
+
+  const isProjectPaused = status === 'PAUSED' || status === 'ON-HOLD' || status === 'HOLD';
+
+  // Handle pause/resume project
+  const handleProjectPauseResume = async () => {
+    if (!projectId) return;
+    
+    setActionLoading('project');
+    try {
+      const result = isProjectPaused 
+        ? await resumeProject(projectId)
+        : await pauseProject(projectId);
+
+      if (result.error) {
+        toast({
+          title: 'Error',
+          description: result.error,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Success',
+          description: result.data?.message || (isProjectPaused ? 'Project resumed successfully' : 'Project paused successfully'),
+        });
+        // Reload project details
+        loadProjectDetails(projectId);
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update project status',
+        variant: 'destructive',
+      });
+    } finally {
+      setActionLoading(null);
+      setConfirmDialog({ open: false, type: 'pause' });
+    }
+  };
+
+  // Handle hold/resume call
+  const handleCallHoldResume = async (callId: string, isOnHold: boolean) => {
+    if (!projectId) return;
+
+    setActionLoading(callId);
+    try {
+      const result = isOnHold
+        ? await resumeCall(projectId, callId)
+        : await holdCall(projectId, callId);
+
+      if (result.error) {
+        toast({
+          title: 'Error',
+          description: result.error,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Success',
+          description: result.data?.message || (isOnHold ? 'Call resumed successfully' : 'Call put on hold'),
+        });
+        // Reload project details
+        loadProjectDetails(projectId);
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update call status',
+        variant: 'destructive',
+      });
+    } finally {
+      setActionLoading(null);
+      setConfirmDialog({ open: false, type: 'holdCall' });
+    }
+  };
+
+  const canHoldCall = (call: ProjectCallRow) => {
+    const s = call.status?.toUpperCase();
+    return s === 'PENDING' || s === 'DISPATCHED' || s === 'ASSIGNED';
+  };
+
+  const isCallOnHold = (call: ProjectCallRow) => {
+    return call.status?.toUpperCase() === 'HOLD';
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -172,10 +288,32 @@ const ProjectDetails = () => {
                   </div>
                 </div>
                 
-                <Button variant="outline" onClick={() => navigate('/projects')}>
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back to Projects
-                </Button>
+                <div className="flex items-center gap-2">
+                  {/* Pause/Resume Project Button */}
+                  <Button 
+                    variant={isProjectPaused ? 'default' : 'outline'}
+                    onClick={() => setConfirmDialog({ 
+                      open: true, 
+                      type: isProjectPaused ? 'resume' : 'pause' 
+                    })}
+                    disabled={actionLoading === 'project' || status === 'COMPLETED'}
+                    className={isProjectPaused ? 'bg-success hover:bg-success/90' : 'border-warning text-warning hover:bg-warning/10'}
+                  >
+                    {actionLoading === 'project' ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : isProjectPaused ? (
+                      <Play className="h-4 w-4 mr-2" />
+                    ) : (
+                      <Pause className="h-4 w-4 mr-2" />
+                    )}
+                    {isProjectPaused ? 'Resume Project' : 'Pause Project'}
+                  </Button>
+                  
+                  <Button variant="outline" onClick={() => navigate('/projects')}>
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back
+                  </Button>
+                </div>
               </div>
 
               {/* Stats Cards */}
@@ -219,13 +357,13 @@ const ProjectDetails = () => {
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">Pending</p>
+                        <p className="text-sm text-muted-foreground">On Hold</p>
                         <p className="text-2xl font-bold text-warning">
-                          {selectedProjectLoading ? <Skeleton className="h-8 w-12" /> : (calls.filter(c => c.status?.toLowerCase() === 'pending').length)}
+                          {selectedProjectLoading ? <Skeleton className="h-8 w-12" /> : (calls.filter(c => c.status?.toUpperCase() === 'HOLD').length)}
                         </p>
                       </div>
                       <div className="p-2 rounded-lg bg-warning/10">
-                        <Clock className="h-5 w-5 text-warning" />
+                        <Pause className="h-5 w-5 text-warning" />
                       </div>
                     </div>
                   </CardContent>
@@ -343,32 +481,39 @@ const ProjectDetails = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                       <div className="text-center p-4 bg-success/5 rounded-xl border border-success/20">
                         <CheckCircle className="h-6 w-6 text-success mx-auto mb-2" />
                         <p className="text-2xl font-bold text-success">
-                          {calls.filter(c => c.status?.toLowerCase() === 'completed').length}
+                          {calls.filter(c => c.status?.toUpperCase() === 'COMPLETED').length}
                         </p>
                         <p className="text-sm text-muted-foreground">Completed</p>
                       </div>
                       <div className="text-center p-4 bg-primary/5 rounded-xl border border-primary/20">
                         <Activity className="h-6 w-6 text-primary mx-auto mb-2" />
                         <p className="text-2xl font-bold text-primary">
-                          {calls.filter(c => c.status?.toLowerCase() === 'active').length}
+                          {calls.filter(c => ['ASSIGNED', 'DISPATCHED'].includes(c.status?.toUpperCase() || '')).length}
                         </p>
                         <p className="text-sm text-muted-foreground">Active</p>
                       </div>
-                      <div className="text-center p-4 bg-warning/5 rounded-xl border border-warning/20">
-                        <Clock className="h-6 w-6 text-warning mx-auto mb-2" />
-                        <p className="text-2xl font-bold text-warning">
-                          {calls.filter(c => c.status?.toLowerCase() === 'pending').length}
+                      <div className="text-center p-4 bg-muted/50 rounded-xl border border-muted">
+                        <Clock className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-2xl font-bold text-muted-foreground">
+                          {calls.filter(c => c.status?.toUpperCase() === 'PENDING').length}
                         </p>
                         <p className="text-sm text-muted-foreground">Pending</p>
+                      </div>
+                      <div className="text-center p-4 bg-warning/5 rounded-xl border border-warning/20">
+                        <Pause className="h-6 w-6 text-warning mx-auto mb-2" />
+                        <p className="text-2xl font-bold text-warning">
+                          {calls.filter(c => c.status?.toUpperCase() === 'HOLD').length}
+                        </p>
+                        <p className="text-sm text-muted-foreground">On Hold</p>
                       </div>
                       <div className="text-center p-4 bg-destructive/5 rounded-xl border border-destructive/20">
                         <XCircle className="h-6 w-6 text-destructive mx-auto mb-2" />
                         <p className="text-2xl font-bold text-destructive">
-                          {calls.filter(c => c.status?.toLowerCase() === 'cancelled').length}
+                          {calls.filter(c => c.status?.toUpperCase() === 'CANCELLED').length}
                         </p>
                         <p className="text-sm text-muted-foreground">Cancelled</p>
                       </div>
@@ -411,55 +556,89 @@ const ProjectDetails = () => {
                             <TableRow>
                               <TableHead>Branch</TableHead>
                               <TableHead>Address</TableHead>
-                              <TableHead>Contact</TableHead>
+                              <TableHead>Engineer</TableHead>
                               <TableHead>Status</TableHead>
                               <TableHead className="text-right">Assets</TableHead>
+                              <TableHead className="text-center">Actions</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {calls.map((call, idx) => (
-                              <TableRow key={call.call_id || idx} className="hover:bg-muted/50">
-                                <TableCell>
-                                  <div>
-                                    <p className="font-medium">{call.branch_name || 'N/A'}</p>
-                                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                      <Hash className="h-3 w-3" />
-                                      {call.branch_code || 'N/A'}
-                                    </p>
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="max-w-[200px]">
-                                    <p className="text-sm truncate">{call.address || 'N/A'}</p>
-                                    <Badge variant="outline" className="mt-1 text-xs">
-                                      <MapPin className="h-3 w-3 mr-1" />
-                                      {call.pincode || 'N/A'}
+                            {calls.map((call, idx) => {
+                              const onHold = isCallOnHold(call);
+                              const canHold = canHoldCall(call);
+                              const isLoading = actionLoading === call.call_id;
+                              
+                              return (
+                                <TableRow key={call.call_id || idx} className="hover:bg-muted/50">
+                                  <TableCell>
+                                    <div>
+                                      <p className="font-medium">{call.branch_name || 'N/A'}</p>
+                                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                        <Hash className="h-3 w-3" />
+                                        {call.branch_code || 'N/A'}
+                                      </p>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="max-w-[200px]">
+                                      <p className="text-sm truncate">{call.address || 'N/A'}</p>
+                                      <Badge variant="outline" className="mt-1 text-xs">
+                                        <MapPin className="h-3 w-3 mr-1" />
+                                        {call.pincode || 'N/A'}
+                                      </Badge>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div>
+                                      <p className="text-sm">{call.engineer_name || 'Not Assigned'}</p>
+                                      {call.engineer_contact && (
+                                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                          <Phone className="h-3 w-3" />
+                                          {call.engineer_contact}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge 
+                                      variant="outline" 
+                                      className={`flex items-center gap-1 w-fit ${callStatusColors[call.status?.toLowerCase() || ''] || callStatusColors.pending}`}
+                                    >
+                                      {callStatusIcons[call.status?.toLowerCase() || ''] || callStatusIcons.pending}
+                                      {call.status || 'Pending'}
                                     </Badge>
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <div>
-                                    <p className="text-sm">{call.engineer_name || 'N/A'}</p>
-                                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                      <Phone className="h-3 w-3" />
-                                      {call.engineer_contact || 'N/A'}
-                                    </p>
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <Badge 
-                                    variant="outline" 
-                                    className={`flex items-center gap-1 w-fit ${callStatusColors[call.status?.toLowerCase()] || callStatusColors.pending}`}
-                                  >
-                                    {callStatusIcons[call.status?.toLowerCase()] || callStatusIcons.pending}
-                                    {call.status || 'Pending'}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <span className="font-medium">{call.asset_count || 0}</span>
-                                </TableCell>
-                              </TableRow>
-                            ))}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <span className="font-medium">{call.asset_count || 0}</span>
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    {(onHold || canHold) && call.status?.toUpperCase() !== 'COMPLETED' && (
+                                      <Button
+                                        variant={onHold ? 'default' : 'outline'}
+                                        size="sm"
+                                        onClick={() => handleCallHoldResume(call.call_id, onHold)}
+                                        disabled={isLoading}
+                                        className={onHold ? 'bg-success hover:bg-success/90 h-8' : 'border-warning text-warning hover:bg-warning/10 h-8'}
+                                      >
+                                        {isLoading ? (
+                                          <Loader2 className="h-3 w-3 animate-spin" />
+                                        ) : onHold ? (
+                                          <>
+                                            <Play className="h-3 w-3 mr-1" />
+                                            Resume
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Pause className="h-3 w-3 mr-1" />
+                                            Hold
+                                          </>
+                                        )}
+                                      </Button>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
                           </TableBody>
                         </Table>
                       </ScrollArea>
@@ -471,6 +650,31 @@ const ProjectDetails = () => {
           </>
         )}
       </main>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmDialog.type === 'pause' && 'Pause Project?'}
+              {confirmDialog.type === 'resume' && 'Resume Project?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDialog.type === 'pause' && 'This will pause the project and put all active calls on hold. You can resume it later.'}
+              {confirmDialog.type === 'resume' && 'This will resume the project and all held calls will be set to pending for dispatch.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleProjectPauseResume}
+              className={confirmDialog.type === 'resume' ? 'bg-success hover:bg-success/90' : 'bg-warning hover:bg-warning/90'}
+            >
+              {confirmDialog.type === 'pause' ? 'Pause Project' : 'Resume Project'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
