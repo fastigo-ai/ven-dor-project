@@ -435,3 +435,147 @@ export const fetchProjectDetails = async (projectId: string): Promise<ApiRespons
     return { error: 'Network error. Please try again.' };
   }
 };
+
+// ========================================
+// CALL & PROJECT STATUS MANAGEMENT API
+// ========================================
+
+// Hold a single call - POST /{project_id}/calls/{call_id}/hold
+export const holdCall = async (projectId: string, callId: string): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      return { error: 'Authentication required. Please login again.' };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/calls/${callId}/hold`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 401) {
+        removeAuthToken();
+        return { error: 'Session expired. Please login again.' };
+      }
+      return { error: error.detail || 'Failed to hold call' };
+    }
+
+    const result: BackendSuccessResponse = await response.json();
+    console.log('Backend holdCall response:', result);
+
+    return { data: { message: result.message } };
+  } catch (error) {
+    console.error('holdCall error:', error);
+    return { error: 'Network error. Please try again.' };
+  }
+};
+
+// Resume a single call - POST /{project_id}/calls/{call_id}/resume
+export const resumeCall = async (projectId: string, callId: string): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      return { error: 'Authentication required. Please login again.' };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/calls/${callId}/resume`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 401) {
+        removeAuthToken();
+        return { error: 'Session expired. Please login again.' };
+      }
+      return { error: error.detail || 'Failed to resume call' };
+    }
+
+    const result: BackendSuccessResponse = await response.json();
+    console.log('Backend resumeCall response:', result);
+
+    return { data: { message: result.message } };
+  } catch (error) {
+    console.error('resumeCall error:', error);
+    return { error: 'Network error. Please try again.' };
+  }
+};
+
+// Pause entire project - POST /{project_id}/pause
+export const pauseProject = async (projectId: string): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      return { error: 'Authentication required. Please login again.' };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/pause`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 401) {
+        removeAuthToken();
+        return { error: 'Session expired. Please login again.' };
+      }
+      return { error: error.detail || 'Failed to pause project' };
+    }
+
+    const result: BackendSuccessResponse = await response.json();
+    console.log('Backend pauseProject response:', result);
+
+    return { data: { message: result.message } };
+  } catch (error) {
+    console.error('pauseProject error:', error);
+    return { error: 'Network error. Please try again.' };
+  }
+};
+
+// Resume entire project - POST /{project_id}/resume
+export const resumeProject = async (projectId: string): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      return { error: 'Authentication required. Please login again.' };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/resume`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 401) {
+        removeAuthToken();
+        return { error: 'Session expired. Please login again.' };
+      }
+      return { error: error.detail || 'Failed to resume project' };
+    }
+
+    const result: BackendSuccessResponse = await response.json();
+    console.log('Backend resumeProject response:', result);
+
+    return { data: { message: result.message } };
+  } catch (error) {
+    console.error('resumeProject error:', error);
+    return { error: 'Network error. Please try again.' };
+  }
+};
