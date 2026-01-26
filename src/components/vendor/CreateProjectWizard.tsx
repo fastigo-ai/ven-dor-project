@@ -319,7 +319,7 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
         project_name: projectData.name,
         support_type: projectData.supportType,
         l1_support_name: projectData.l1SupportName,
-        l1_support_number: projectData.l1SupportNumber,
+        l1_support_phone: projectData.l1SupportNumber,
       });
 
       if (projectResult.error || !projectResult.data?.project_id) {

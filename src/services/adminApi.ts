@@ -2,7 +2,8 @@
 // All routes are under /admin/* prefix
 // Requires admin role authentication
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://vendor-backend-1t05.onrender.com';
+// const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const ADMIN_TOKEN_KEY = 'admin_token';
 
 // Admin token management

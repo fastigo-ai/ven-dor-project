@@ -3,7 +3,8 @@
 
 import { getAuthToken, removeAuthToken } from './authApi';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://vendor-backend-1t05.onrender.com';
+// const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 interface ApiResponse<T = unknown> {
   data?: T;
@@ -21,7 +22,7 @@ export interface ProjectCreatePayload {
   project_name: string;
   support_type: string;
   l1_support_name: string;
-  l1_support_number: string;
+  l1_support_phone: string;
 }
 
 // Create project - Backend returns { message, data: { project_id } }
