@@ -1,11 +1,12 @@
 // Project API Service - Integrates with FastAPI backend
 // Backend uses success_response() wrapper: { message: string, data: {...} }
 
+import { zodResolver } from '@hookform/resolvers/zod';
 import { getAuthToken, removeAuthToken } from './authApi';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://vendor-backend-1t05.onrender.com';
 // const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
+zodResolver
 interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
