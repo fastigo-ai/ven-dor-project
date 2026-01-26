@@ -22,35 +22,37 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <VendorProvider>
-        <BrowserRouter>
-          <AuthLoader>
-            <Toaster />
-            <Sonner />
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/dashboard" element={<VendorDashboard />} />
-              <Route path="/projects" element={<VendorProjects />} />
-              <Route path="/projects/:projectId" element={<ProjectDetails />} />
-              <Route path="/register" element={<EmailStep />} />
-              <Route path="/register/verify" element={<VerifyStep />} />
-              <Route path="/register/password" element={<PasswordStep />} />
-              <Route path="/register/company" element={<CompanyStep />} />
-              <Route path="/pending" element={<PendingApproval />} />
-              <Route path="/admin/login" element={<AdminLogin />} />
-              <Route path="/admin" element={<AdminPanel />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AuthLoader>
-        </BrowserRouter>
-      </VendorProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <VendorProvider>
+          <BrowserRouter>
+            <AuthLoader>
+              <Toaster />
+              <Sonner />
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/dashboard" element={<VendorDashboard />} />
+                <Route path="/projects" element={<VendorProjects />} />
+                <Route path="/projects/:projectId" element={<ProjectDetails />} />
+                <Route path="/register" element={<EmailStep />} />
+                <Route path="/register/verify" element={<VerifyStep />} />
+                <Route path="/register/password" element={<PasswordStep />} />
+                <Route path="/register/company" element={<CompanyStep />} />
+                <Route path="/pending" element={<PendingApproval />} />
+                <Route path="/admin/login" element={<AdminLogin />} />
+                <Route path="/admin" element={<AdminPanel />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </AuthLoader>
+          </BrowserRouter>
+        </VendorProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
