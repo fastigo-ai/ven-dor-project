@@ -5,12 +5,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { BackendProjectData } from '@/contexts/VendorContext';
 import { ProjectDetailsResponse, ProjectCallRow } from '@/services/projectApi';
+import { pauseProject, resumeProject, holdCall, resumeCall } from '@/services/projectApi';
+import { toast } from '@/hooks/use-toast';
+import { useState } from 'react';
 import {
   FolderOpen,
   Phone,
@@ -23,6 +37,10 @@ import {
   Calendar,
   Wrench,
   Truck,
+  Pause,
+  Play,
+  Loader2,
+  XCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -78,6 +96,10 @@ const BackendProjectDetailsDialog = ({
   details,
   loading,
 }: BackendProjectDetailsDialogProps) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPauseDialog, setShowPauseDialog] = useState(false);
+  const [actioningCallId, setActioningCallId] = useState<string | null>(null);
+
   if (!project) return null;
 
   const projectInfo = details?.project;
@@ -91,7 +113,71 @@ const BackendProjectDetailsDialog = ({
     return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
   };
 
+  const isPaused = project.status.toUpperCase() === 'PAUSED' || 
+                   project.status.toUpperCase() === 'HOLD' || 
+                   project.status.toUpperCase() === 'ON-HOLD';
+
+  const handleProjectPauseResume = async () => {
+    setIsLoading(true);
+    try {
+      if (isPaused) {
+        await resumeProject(project.id);
+        toast({
+          title: 'Project Resumed',
+          description: 'Project and all held calls have been resumed successfully.',
+        });
+      } else {
+        await pauseProject(project.id);
+        toast({
+          title: 'Project Paused',
+          description: 'Project and all active calls have been put on hold.',
+        });
+      }
+      // Reload the project details
+      window.location.reload();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to update project status',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+      setShowPauseDialog(false);
+    }
+  };
+
+  const handleCallHoldResume = async (callId: string, isResume: boolean) => {
+    setActioningCallId(callId);
+    try {
+      if (isResume) {
+        await resumeCall(project.id, callId);
+        toast({
+          title: 'Call Resumed',
+          description: 'Call has been resumed successfully.',
+        });
+      } else {
+        await holdCall(project.id, callId);
+        toast({
+          title: 'Call On Hold',
+          description: 'Call has been put on hold successfully.',
+        });
+      }
+      // Reload the project details
+      window.location.reload();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to update call status',
+        variant: 'destructive',
+      });
+    } finally {
+      setActioningCallId(null);
+    }
+  };
+
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[95vw] max-w-3xl h-[85vh] max-h-[85vh] flex flex-col p-0">
         <div className="p-4 sm:p-6 pb-0">
@@ -108,12 +194,44 @@ const BackendProjectDetailsDialog = ({
                   Created on {new Date(project.createdAt).toLocaleDateString()}
                 </DialogDescription>
               </div>
-              <Badge
-                variant="outline"
-                className={cn('capitalize shrink-0', statusColors[project.status.toUpperCase()] || statusColors['PENDING'])}
-              >
-                {getStatusLabel(project.status)}
-              </Badge>
+              <div className="flex items-center gap-2 shrink-0">
+                <Badge
+                  variant="outline"
+                  className={cn('capitalize', statusColors[project.status.toUpperCase()] || statusColors['PENDING'])}
+                >
+                  {getStatusLabel(project.status)}
+                </Badge>
+                <Button
+                  variant={isPaused ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    if (isPaused) {
+                      handleProjectPauseResume();
+                    } else {
+                      setShowPauseDialog(true);
+                    }
+                  }}
+                  disabled={isLoading}
+                  className={cn(
+                    'h-8 gap-1',
+                    isPaused && 'bg-success hover:bg-success/90'
+                  )}
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : isPaused ? (
+                    <>
+                      <Play className="h-3 w-3" />
+                      <span className="hidden sm:inline">Resume</span>
+                    </>
+                  ) : (
+                    <>
+                      <Pause className="h-3 w-3" />
+                      <span className="hidden sm:inline">Pause</span>
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </DialogHeader>
         </div>
@@ -264,6 +382,12 @@ const BackendProjectDetailsDialog = ({
                       {calls.map((call) => {
                         const statusKey = call.status?.toUpperCase() || 'PENDING';
                         const StatusIcon = callStatusIcons[statusKey] || Clock;
+                        const onHold = statusKey === 'HOLD';
+                        const canHold = ['PENDING', 'DISPATCHED', 'ASSIGNED'].includes(statusKey);
+                        const isCompleted = statusKey === 'COMPLETED';
+                        const isCancelled = statusKey === 'CANCELLED';
+                        const isActioningThis = actioningCallId === call.call_id;
+
                         return (
                           <div
                             key={call.call_id}
@@ -275,13 +399,60 @@ const BackendProjectDetailsDialog = ({
                                 <span className="font-medium text-sm">{call.branch_name || 'N/A'}</span>
                                 <span className="text-xs text-muted-foreground">({call.branch_code})</span>
                               </div>
-                              <Badge
-                                variant="outline"
-                                className={cn('capitalize text-xs', callStatusColors[statusKey] || callStatusColors['PENDING'])}
-                              >
-                                <StatusIcon className="h-3 w-3 mr-1" />
-                                {call.status?.toLowerCase() || 'pending'}
-                              </Badge>
+                              <div className="flex items-center gap-2">
+                                <Badge
+                                  variant="outline"
+                                  className={cn('capitalize text-xs', callStatusColors[statusKey] || callStatusColors['PENDING'])}
+                                >
+                                  <StatusIcon className="h-3 w-3 mr-1" />
+                                  {call.status?.toLowerCase() || 'pending'}
+                                </Badge>
+                                {isCompleted ? (
+                                  <Badge variant="outline" className="bg-success/10 text-success border-success/30 text-xs">
+                                    <CheckCircle className="h-3 w-3 mr-1" />
+                                    Done
+                                  </Badge>
+                                ) : isCancelled ? (
+                                  <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30 text-xs">
+                                    <XCircle className="h-3 w-3 mr-1" />
+                                    Cancelled
+                                  </Badge>
+                                ) : onHold ? (
+                                  <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={() => handleCallHoldResume(call.call_id, true)}
+                                    disabled={isActioningThis}
+                                    className="bg-success hover:bg-success/90 h-7 gap-1 text-xs"
+                                  >
+                                    {isActioningThis ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Play className="h-3 w-3" />
+                                        Resume
+                                      </>
+                                    )}
+                                  </Button>
+                                ) : canHold ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleCallHoldResume(call.call_id, false)}
+                                    disabled={isActioningThis}
+                                    className="border-warning text-warning hover:bg-warning/10 h-7 gap-1 text-xs"
+                                  >
+                                    {isActioningThis ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Pause className="h-3 w-3" />
+                                        Hold
+                                      </>
+                                    )}
+                                  </Button>
+                                ) : null}
+                              </div>
                             </div>
                             <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                               <div className="flex items-center gap-1">
@@ -354,6 +525,32 @@ const BackendProjectDetailsDialog = ({
         </div>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={showPauseDialog} onOpenChange={setShowPauseDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Pause Project?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will pause the project and put all active calls (Pending, Dispatched, Assigned) on hold.
+            The dispatch engine will stop until you resume the project.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleProjectPauseResume} disabled={isLoading}>
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Pausing...
+              </>
+            ) : (
+              'Pause Project'
+            )}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 };
 
