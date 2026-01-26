@@ -612,28 +612,52 @@ const ProjectDetails = () => {
                                     <span className="font-medium">{call.asset_count || 0}</span>
                                   </TableCell>
                                   <TableCell className="text-center">
-                                    {(onHold || canHold) && call.status?.toUpperCase() !== 'COMPLETED' && (
+                                    {call.status?.toUpperCase() === 'COMPLETED' ? (
+                                      <Badge variant="outline" className="bg-success/10 text-success border-success/30">
+                                        <CheckCircle className="h-3 w-3 mr-1" />
+                                        Completed
+                                      </Badge>
+                                    ) : call.status?.toUpperCase() === 'CANCELLED' ? (
+                                      <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">
+                                        <XCircle className="h-3 w-3 mr-1" />
+                                        Cancelled
+                                      </Badge>
+                                    ) : onHold ? (
                                       <Button
-                                        variant={onHold ? 'default' : 'outline'}
+                                        variant="default"
                                         size="sm"
-                                        onClick={() => handleCallHoldResume(call.call_id, onHold)}
+                                        onClick={() => handleCallHoldResume(call.call_id, true)}
                                         disabled={isLoading}
-                                        className={onHold ? 'bg-success hover:bg-success/90 h-8' : 'border-warning text-warning hover:bg-warning/10 h-8'}
+                                        className="bg-success hover:bg-success/90 h-8 gap-1"
                                       >
                                         {isLoading ? (
                                           <Loader2 className="h-3 w-3 animate-spin" />
-                                        ) : onHold ? (
-                                          <>
-                                            <Play className="h-3 w-3 mr-1" />
-                                            Resume
-                                          </>
                                         ) : (
                                           <>
-                                            <Pause className="h-3 w-3 mr-1" />
+                                            <Play className="h-3 w-3" />
+                                            Resume
+                                          </>
+                                        )}
+                                      </Button>
+                                    ) : canHold ? (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleCallHoldResume(call.call_id, false)}
+                                        disabled={isLoading}
+                                        className="border-warning text-warning hover:bg-warning/10 h-8 gap-1"
+                                      >
+                                        {isLoading ? (
+                                          <Loader2 className="h-3 w-3 animate-spin" />
+                                        ) : (
+                                          <>
+                                            <Pause className="h-3 w-3" />
                                             Hold
                                           </>
                                         )}
                                       </Button>
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">—</span>
                                     )}
                                   </TableCell>
                                 </TableRow>
