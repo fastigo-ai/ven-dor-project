@@ -7,7 +7,7 @@ const Logo = () => {
       <img 
         src={door2fyLogo} 
         alt="Door2Fy - Repair They Gadgets At Home" 
-        className="h-10 sm:h-12 w-auto object-contain"
+        className="h-24 w-28 sm:h-14  object-contain"
       />
     </Link>
   );
