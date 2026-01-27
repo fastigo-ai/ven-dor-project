@@ -1,12 +1,11 @@
 // Project API Service - Integrates with FastAPI backend
 // Backend uses success_response() wrapper: { message: string, data: {...} }
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { getAuthToken, removeAuthToken } from './authApi';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://vendor-backend-1t05.onrender.com';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://door2fyvendor-gv4g4.ondigitalocean.app';
 // const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-zodResolver
+
 interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
@@ -233,6 +232,14 @@ export interface ServiceableLocation {
   pincode: string;
   asset_type: string;
   support_type: string;
+  state_name?: string;
+  branch_name?: string;
+  branch_code?: string;
+  address?: string;
+  contact_name?: string;
+  contact_phone?: string;
+  assets_count?: number;
+  sla_priority?: string;
 }
 
 export interface NonServiceableLocation {
@@ -241,6 +248,14 @@ export interface NonServiceableLocation {
   asset_type: string;
   support_type: string;
   reason: string;
+  state_name?: string;
+  branch_name?: string;
+  branch_code?: string;
+  address?: string;
+  contact_name?: string;
+  contact_phone?: string;
+  assets_count?: number;
+  sla_priority?: string;
 }
 
 // Backend returns raw object (not wrapped in success_response)
@@ -360,15 +375,27 @@ export interface ProjectCallRow {
   assigned_at?: string | null;
 }
 
-// Fetch all projects for vendor - GET /projects
-export const fetchVendorProjects = async (): Promise<ApiResponse<BackendProject[]>> => {
+// Paginated response from backend
+export interface PaginatedProjectsResponse {
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+  data: BackendProject[];
+}
+
+// Fetch paginated projects for vendor - GET /projects?page=1&page_size=12
+export const fetchVendorProjects = async (
+  page: number = 1, 
+  pageSize: number = 14
+): Promise<ApiResponse<PaginatedProjectsResponse>> => {
   try {
     const token = getAuthToken();
     if (!token) {
       return { error: 'Authentication required. Please login again.' };
     }
 
-    const response = await fetch(`${API_BASE_URL}/projects`, {
+    const response = await fetch(`${API_BASE_URL}/projects?page=${page}&page_size=${pageSize}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -388,15 +415,16 @@ export const fetchVendorProjects = async (): Promise<ApiResponse<BackendProject[
     const data = await response.json();
     console.log('Backend fetchVendorProjects response:', data);
 
-    // Handle both array and wrapped responses
-    if (Array.isArray(data)) {
-      return { data };
-    }
-    if (data.data && Array.isArray(data.data)) {
-      return { data: data.data };
-    }
-
-    return { data: [] };
+    // Return paginated response
+    return { 
+      data: {
+        page: data.page || 1,
+        page_size: data.page_size || pageSize,
+        total: data.total || 0,
+        total_pages: data.total_pages || 1,
+        data: data.data || []
+      }
+    };
   } catch (error) {
     console.error('fetchVendorProjects error:', error);
     return { error: 'Network error. Please try again.' };

@@ -184,23 +184,11 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
     const errors: string[] = [];
 
     if (lines.length < 2) {
-      errors.push('CSV must contain at least a header row and one data row');
       return { data, errors };
     }
 
     const headers = lines[0].split(',').map((h) => h.trim());
     
-    // Check for required columns (case-insensitive)
-    const headerLower = headers.map(h => h.toLowerCase());
-    const missingColumns = REQUIRED_CSV_COLUMNS.filter(
-      col => !headerLower.includes(col.toLowerCase())
-    );
-
-    if (missingColumns.length > 0) {
-      errors.push(`Missing required columns: ${missingColumns.join(', ')}`);
-      return { data, errors };
-    }
-
     // Build column index map
     const colIndex: Record<string, number> = {};
     headers.forEach((h, idx) => {
@@ -216,19 +204,8 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
 
       const getValue = (colName: string) => values[colIndex[colName.toLowerCase()]] || '';
 
-      // Validate pincode
       const pincode = getValue('Pincode');
-      if (!/^\d{6}$/.test(pincode)) {
-        errors.push(`Row ${i + 1}: Invalid pincode "${pincode}" - must be 6 digits`);
-        continue;
-      }
-
-      // Validate assets count
-      const assetsCount = parseInt(getValue('Assets Count'), 10);
-      if (isNaN(assetsCount) || assetsCount < 0) {
-        errors.push(`Row ${i + 1}: Invalid Assets Count`);
-        continue;
-      }
+      const assetsCount = parseInt(getValue('Assets Count'), 10) || 0;
 
       data.push({
         stateName: getValue('State Name'),
@@ -330,14 +307,8 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
           description: projectResult.error || 'Backend did not return project_id',
           variant: 'destructive',
         });
-        // Fallback to mock data
-        const mockAnalysis = parsedData.map((location) => ({
-          ...location,
-          serviceable: Math.random() > 0.2,
-          reason: Math.random() > 0.2 ? undefined : 'No engineer available in this area',
-        }));
-        setLocationAnalysis(mockAnalysis);
-        setCurrentStep(3);
+        // Show error and stop - no fallback to mock data
+        setIsValidatingAddresses(false);
         return;
       }
 
@@ -396,13 +367,14 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
       const validationResult = await validateProjectAddresses(projectId);
 
       if (validationResult.error || !validationResult.data) {
-        console.warn('Address validation API failed, using mock:', validationResult.error);
-        const mockAnalysis = parsedData.map((location) => ({
-          ...location,
-          serviceable: Math.random() > 0.2,
-          reason: Math.random() > 0.2 ? undefined : 'No engineer available in this area',
-        }));
-        setLocationAnalysis(mockAnalysis);
+        console.warn('Address validation API failed:', validationResult.error);
+        toast({
+          title: 'Validation Error',
+          description: 'Address validation failed. Please try again.',
+          variant: 'destructive',
+        });
+        setIsValidatingAddresses(false);
+        return;
       } else {
         // Map API response to locationAnalysis format
         const apiData = validationResult.data;
@@ -413,31 +385,41 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
           apiData.non_serviceable_locations?.map((loc) => [loc.call_id, loc.reason]) || []
         );
 
-        // Match parsed data with API results by pincode
-        const analysis = parsedData.map((location, index) => {
-          // Try to match by pincode since we don't have call_id locally
-          const matchingNonServiceable = apiData.non_serviceable_locations?.find(
-            (ns) => ns.pincode === location.pincode
-          );
-          
-          if (matchingNonServiceable) {
-            return {
-              ...location,
-              serviceable: false,
-              reason: matchingNonServiceable.reason,
-            };
-          }
+        // Use API response directly for non-serviceable locations
+        const nonServiceableFromApi = (apiData.non_serviceable_locations || []).map((ns) => ({
+          stateName: ns.state_name || '',
+          branchName: ns.branch_name || '',
+          branchCategory: '',
+          branchCode: ns.branch_code || '',
+          address: ns.address || '',
+          pincode: ns.pincode || '',
+          contactName: ns.contact_name || '',
+          contactPhone: ns.contact_phone || '',
+          assetsCount: ns.assets_count || 0,
+          supportType: ns.support_type || '',
+          assetType: ns.asset_type || '',
+          serviceable: false,
+          reason: ns.reason || 'No engineer available in this area',
+        }));
 
-          const matchingServiceable = apiData['Service available locations']?.find(
-            (s) => s.pincode === location.pincode
-          );
+        // Use API response directly for serviceable locations
+        const serviceableFromApi = (apiData['Service available locations'] || []).map((s) => ({
+          stateName: s.state_name || '',
+          branchName: s.branch_name || '',
+          branchCategory: '',
+          branchCode: s.branch_code || '',
+          address: s.address || '',
+          pincode: s.pincode || '',
+          contactName: s.contact_name || '',
+          contactPhone: s.contact_phone || '',
+          assetsCount: s.assets_count || 0,
+          supportType: s.support_type || '',
+          assetType: s.asset_type || '',
+          serviceable: true,
+          reason: undefined,
+        }));
 
-          return {
-            ...location,
-            serviceable: !!matchingServiceable,
-            reason: matchingServiceable ? undefined : 'No engineer available in this area',
-          };
-        });
+        const analysis = [...serviceableFromApi, ...nonServiceableFromApi];
 
         setLocationAnalysis(analysis);
       }
@@ -827,26 +809,8 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
                 </div>
               </div>
 
-              {/* Validation Errors */}
-              {validationErrors.length > 0 && (
-                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <AlertCircle className="h-4 w-4 text-destructive" />
-                    <p className="font-medium text-destructive text-sm">Validation Errors</p>
-                  </div>
-                  <ul className="text-xs text-destructive space-y-1 max-h-24 overflow-y-auto">
-                    {validationErrors.slice(0, 5).map((error, index) => (
-                      <li key={index}>• {error}</li>
-                    ))}
-                    {validationErrors.length > 5 && (
-                      <li>... and {validationErrors.length - 5} more errors</li>
-                    )}
-                  </ul>
-                </div>
-              )}
-
               {/* Success Message */}
-              {parsedData.length > 0 && validationErrors.length === 0 && (
+              {parsedData.length > 0 && (
                 <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
                   <div className="flex items-center gap-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
@@ -1037,15 +1001,15 @@ const CreateProjectWizard = ({ open, onOpenChange }: CreateProjectWizardProps) =
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-3 max-h-48 overflow-y-auto">
+                    <div className="space-y-3">
                       {nonServiceableLocations.map((loc, idx) => (
                         <div key={idx} className="flex justify-between items-start py-2 border-b border-muted last:border-0">
-                          <div>
+                          <div className="flex-1 min-w-0 pr-3">
                             <p className="font-medium text-sm text-foreground">{loc.branchName}</p>
                             <p className="text-xs text-muted-foreground">{loc.address}</p>
                             <p className="text-xs text-red-500 mt-1">{loc.reason}</p>
                           </div>
-                          <span className="px-3 py-1 text-sm font-medium text-red-500 border border-red-300 rounded-full">
+                          <span className="px-3 py-1 text-sm font-medium text-red-500 border border-red-300 rounded-full whitespace-nowrap flex-shrink-0">
                             {loc.pincode}
                           </span>
                         </div>

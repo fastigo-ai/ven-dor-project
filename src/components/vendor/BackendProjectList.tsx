@@ -16,6 +16,8 @@ import {
   AlertCircle,
   RefreshCw,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -31,7 +33,7 @@ interface BackendProjectListProps {
   projects: BackendProjectData[];
   loading: boolean;
   error: string | null;
-  onRefresh: () => void;
+  onRefresh: (page?: number, pageSize?: number) => void | Promise<void>;
   onCreateProject?: () => void;
 }
 
@@ -46,10 +48,24 @@ const statusColors: Record<string, string> = {
 };
 
 const BackendProjectList = ({ projects, loading, error, onRefresh, onCreateProject }: BackendProjectListProps) => {
-  const { loadProjectDetails, selectedProjectDetails, selectedProjectLoading } = useVendor();
+  const {
+    loadProjectDetails,
+    selectedProjectDetails,
+    selectedProjectLoading,
+    projectsPagination,
+  } = useVendor();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<BackendProjectData | null>(null);
   const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null);
+
+  // Backend-driven pagination state
+  const currentPage = projectsPagination.page;
+  const pageSize = projectsPagination.pageSize;
+  const totalPages = projectsPagination.totalPages;
+  const totalProjects = projectsPagination.total;
+
+  const startIndex = totalProjects === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endIndex = totalProjects === 0 ? 0 : Math.min(startIndex + projects.length - 1, totalProjects);
 
   const handleViewDetails = async (project: BackendProjectData, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -75,6 +91,11 @@ const BackendProjectList = ({ projects, loading, error, onRefresh, onCreateProje
     if (normalized === 'APPROVED' || normalized === 'ACTIVE') return 'Active';
     if (normalized === 'ON-HOLD' || normalized === 'HOLD') return 'On Hold';
     return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+  };
+
+  const handlePageChange = (page: number) => {
+    onRefresh(page, pageSize);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   if (loading) {
@@ -115,7 +136,7 @@ const BackendProjectList = ({ projects, loading, error, onRefresh, onCreateProje
           <AlertCircle className="h-12 w-12 text-destructive mb-4" />
           <h3 className="text-lg font-medium text-foreground mb-1">Error Loading Projects</h3>
           <p className="text-sm text-muted-foreground text-center mb-4">{error}</p>
-          <Button onClick={onRefresh} variant="outline" size="sm">
+          <Button onClick={() => onRefresh(currentPage, pageSize)} variant="outline" size="sm">
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry
           </Button>
@@ -144,7 +165,7 @@ const BackendProjectList = ({ projects, loading, error, onRefresh, onCreateProje
   return (
     <>
       <div className="flex justify-end mb-4">
-        <Button onClick={onRefresh} variant="outline" size="sm" disabled={loading}>
+        <Button onClick={() => onRefresh(currentPage, pageSize)} variant="outline" size="sm" disabled={loading}>
           <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
           Refresh
         </Button>
@@ -240,6 +261,64 @@ const BackendProjectList = ({ projects, loading, error, onRefresh, onCreateProje
           );
         })}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-6">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1 || loading}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          
+          <div className="flex items-center gap-1">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+              // Show first, last, current, and adjacent pages
+              const showPage =
+                page === 1 ||
+                page === totalPages ||
+                Math.abs(page - currentPage) <= 1;
+              
+              const showEllipsisBefore = page === currentPage - 2 && currentPage > 3;
+              const showEllipsisAfter = page === currentPage + 2 && currentPage < totalPages - 2;
+              
+              if (showEllipsisBefore || showEllipsisAfter) {
+                return <span key={page} className="px-2 text-muted-foreground">...</span>;
+              }
+              
+              if (!showPage) return null;
+              
+              return (
+                <Button
+                  key={page}
+                  variant={currentPage === page ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handlePageChange(page)}
+                  className="min-w-[36px]"
+                >
+                  {page}
+                </Button>
+              );
+            })}
+          </div>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages || loading}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          
+          <span className="text-sm text-muted-foreground ml-2">
+            {startIndex}-{endIndex} of {totalProjects}
+          </span>
+        </div>
+      )}
 
       <BackendProjectDetailsDialog
         open={detailsOpen}

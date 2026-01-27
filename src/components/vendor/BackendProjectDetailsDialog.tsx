@@ -294,14 +294,14 @@ const BackendProjectDetailsDialog = ({
                       <p className="text-xs text-muted-foreground">L1 Support Name</p>
                       <p className="font-medium flex items-center gap-1">
                         <User className="h-3.5 w-3.5" />
-                        {project.l1SupportName || '-'}
+                        {projectInfo?.l1_support_name || project.l1SupportName || '-'}
                       </p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">L1 Support Number</p>
                       <p className="font-medium flex items-center gap-1">
                         <Phone className="h-3.5 w-3.5" />
-                        {project.l1SupportNumber || '-'}
+                        {projectInfo?.l1_support_number || project.l1SupportNumber || '-'}
                       </p>
                     </div>
                     {project.sla && (

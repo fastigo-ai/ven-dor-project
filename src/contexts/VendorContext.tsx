@@ -4,7 +4,8 @@ import {
   fetchProjectDetails, 
   BackendProject, 
   ProjectDetailsResponse, 
-  ProjectCallRow 
+  ProjectCallRow,
+  PaginatedProjectsResponse
 } from '@/services/projectApi';
 
 export type SupportType = 'pm activity' | 'breakfix' | 'on call';
@@ -82,6 +83,14 @@ export interface BackendProjectData {
   totalCost?: number;
 }
 
+// Pagination state for backend projects
+export interface ProjectsPagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
 interface VendorContextType {
   currentEmail: string;
   setCurrentEmail: (email: string) => void;
@@ -106,11 +115,12 @@ interface VendorContextType {
   rateCards: RateCard[];
   updateRateCard: (id: string, updates: Partial<RateCard>) => void;
 
-  // Backend projects state
+  // Backend projects state (with pagination)
   backendProjects: BackendProjectData[];
   backendProjectsLoading: boolean;
   backendProjectsError: string | null;
-  loadBackendProjects: () => Promise<void>;
+  projectsPagination: ProjectsPagination;
+  loadBackendProjects: (page?: number, pageSize?: number) => Promise<void>;
   
   // Selected project details
   selectedProjectDetails: ProjectDetailsResponse | null;
@@ -133,168 +143,32 @@ export const useVendor = () => {
   return context;
 };
 
-const initialRateCards: RateCard[] = [
-  { id: '1', serviceType: 'Standard Delivery', baseRate: 50, perKmRate: 5, urgentMultiplier: 1.5, isActive: true },
-  { id: '2', serviceType: 'Express Delivery', baseRate: 100, perKmRate: 8, urgentMultiplier: 2.0, isActive: true },
-  { id: '3', serviceType: 'Same Day Delivery', baseRate: 150, perKmRate: 10, urgentMultiplier: 2.5, isActive: true },
-  { id: '4', serviceType: 'Bulk Shipment', baseRate: 200, perKmRate: 3, urgentMultiplier: 1.3, isActive: true },
-  { id: '5', serviceType: 'Fragile Items', baseRate: 100, perKmRate: 7, urgentMultiplier: 1.8, isActive: true },
-];
-
-const initialProjects: ProjectData[] = [
-  {
-    id: 'proj-1',
-    vendorId: '2',
-    name: 'Mumbai Metro Deliveries',
-    supportType: 'breakfix',
-    l1SupportName: 'Amit Kumar',
-    l1SupportNumber: '9876543210',
-    createdAt: new Date('2024-01-20'),
-    status: 'active',
-    totalCalls: 45,
-    completedCalls: 32,
-    totalAmount: 125000,
-  },
-  {
-    id: 'proj-2',
-    vendorId: '2',
-    name: 'Bangalore Express',
-    supportType: 'on call',
-    l1SupportName: 'Priya Sharma',
-    l1SupportNumber: '9876543211',
-    createdAt: new Date('2024-01-25'),
-    status: 'active',
-    totalCalls: 28,
-    completedCalls: 15,
-    totalAmount: 78000,
-  },
-  {
-    id: 'proj-3',
-    vendorId: '2',
-    name: 'Delhi NCR Support',
-    supportType: 'pm activity',
-    l1SupportName: 'Rahul Singh',
-    l1SupportNumber: '9876543212',
-    createdAt: new Date('2024-01-28'),
-    status: 'on-hold',
-    totalCalls: 12,
-    completedCalls: 0,
-    totalAmount: 35000,
-  },
-];
-
-const initialCalls: CallData[] = [
-  {
-    id: 'call-1',
-    projectId: 'proj-1',
-    stateName: 'Maharashtra',
-    branchName: 'Andheri West Branch',
-    branchCategory: 'Urban',
-    branchCode: 'MH001',
-    address: '123 MG Road, Andheri West',
-    pincode: '400058',
-    contactName: 'Amit Shah',
-    contactPhone: '9876511111',
-    assetsCount: 5,
-    supportType: 'breakfix',
-    assetType: 'Laptop',
-    status: 'completed',
-    createdAt: new Date('2024-01-21'),
-  },
-  {
-    id: 'call-2',
-    projectId: 'proj-1',
-    stateName: 'Maharashtra',
-    branchName: 'Bandra Branch',
-    branchCategory: 'Urban',
-    branchCode: 'MH002',
-    address: '45 Link Road, Bandra',
-    pincode: '400050',
-    contactName: 'Priya Patel',
-    contactPhone: '9876522222',
-    assetsCount: 3,
-    supportType: 'breakfix',
-    assetType: 'Printer',
-    status: 'assigned',
-    createdAt: new Date('2024-01-22'),
-  },
-  {
-    id: 'call-3',
-    projectId: 'proj-2',
-    stateName: 'Karnataka',
-    branchName: 'Indiranagar Branch',
-    branchCategory: 'Urban',
-    branchCode: 'KA001',
-    address: '78 Indiranagar, Bangalore',
-    pincode: '560038',
-    contactName: 'Rahul Sharma',
-    contactPhone: '9876533333',
-    assetsCount: 2,
-    supportType: 'on call',
-    assetType: 'Desktop',
-    status: 'pending',
-    createdAt: new Date('2024-01-26'),
-  },
-];
-
-const initialVendors: VendorData[] = [
-  {
-    id: '1',
-    email: 'vendor@example.com',
-    companyName: 'Example Logistics',
-    gstNumber: 'GST123456789',
-    registrationNumber: 'REG001',
-    businessAddress: '123 Business Street, Mumbai',
-    contactPersonName: 'John Doe',
-    phoneNumber: '+91 98765 43210',
-    websiteUrl: 'https://example.com',
-    status: 'pending',
-    createdAt: new Date('2024-01-15'),
-  },
-  {
-    id: '2',
-    email: 'logistics@fastship.in',
-    companyName: 'FastShip Logistics Pvt Ltd',
-    gstNumber: '27AABCU9603R1ZM',
-    registrationNumber: 'REG002',
-    businessAddress: '456 Industrial Area, Andheri East, Mumbai - 400093',
-    contactPersonName: 'Rajesh Kumar',
-    phoneNumber: '+91 98765 12345',
-    websiteUrl: 'https://fastshiplogistics.in',
-    status: 'approved',
-    createdAt: new Date('2024-01-10'),
-  },
-  {
-    id: '3',
-    email: 'contact@speedycourier.com',
-    companyName: 'Speedy Courier Services',
-    gstNumber: '29AABCS1234R1ZP',
-    registrationNumber: 'REG003',
-    businessAddress: '789 Delivery Hub, Koramangala, Bangalore - 560034',
-    contactPersonName: 'Priya Sharma',
-    phoneNumber: '+91 98765 67890',
-    websiteUrl: 'https://speedycourier.com',
-    status: 'pending',
-    createdAt: new Date('2024-01-18'),
-  },
-];
+// Empty initial states - all data comes from backend
+const initialRateCards: RateCard[] = [];
+const initialProjects: ProjectData[] = [];
+const initialCalls: CallData[] = [];
+const initialVendors: VendorData[] = [];
 
 export const VendorProvider = ({ children }: { children: ReactNode }) => {
   const [currentEmail, setCurrentEmail] = useState('');
   const [isVerified, setIsVerified] = useState(false);
   const [vendors, setVendors] = useState<VendorData[]>(initialVendors);
   const [currentVendor, setCurrentVendor] = useState<VendorData | null>(null);
-  const [vendorPasswords, setVendorPasswords] = useState<Record<string, string>>({
-    'logistics@fastship.in': 'FastShip@123',
-  });
+  const [vendorPasswords, setVendorPasswords] = useState<Record<string, string>>({});
   const [projects, setProjects] = useState<ProjectData[]>(initialProjects);
   const [calls, setCalls] = useState<CallData[]>(initialCalls);
   const [rateCards, setRateCards] = useState<RateCard[]>(initialRateCards);
 
-  // Backend projects state
+  // Backend projects state with pagination
   const [backendProjects, setBackendProjects] = useState<BackendProjectData[]>([]);
   const [backendProjectsLoading, setBackendProjectsLoading] = useState(false);
   const [backendProjectsError, setBackendProjectsError] = useState<string | null>(null);
+  const [projectsPagination, setProjectsPagination] = useState<ProjectsPagination>({
+    page: 1,
+    pageSize: 14,
+    total: 0,
+    totalPages: 1,
+  });
 
   // Selected project details state
   const [selectedProjectDetails, setSelectedProjectDetails] = useState<ProjectDetailsResponse | null>(null);
@@ -430,13 +304,13 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
-  // Fetch all projects from backend
-  const loadBackendProjects = useCallback(async () => {
+  // Fetch paginated projects from backend
+  const loadBackendProjects = useCallback(async (page: number = 1, pageSize: number = 14) => {
     setBackendProjectsLoading(true);
     setBackendProjectsError(null);
     
     try {
-      const response = await fetchVendorProjects();
+      const response = await fetchVendorProjects(page, pageSize);
       
       if (response.error) {
         setBackendProjectsError(response.error);
@@ -444,7 +318,7 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
       }
       
       if (response.data) {
-        const converted: BackendProjectData[] = response.data.map((p) => ({
+        const converted: BackendProjectData[] = response.data.data.map((p) => ({
           id: p.project_id || p._id || '',
           projectName: p.project_name,
           supportType: p.support_type,
@@ -460,6 +334,12 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
           totalCost: p.total_cost,
         }));
         setBackendProjects(converted);
+        setProjectsPagination({
+          page: response.data.page,
+          pageSize: response.data.page_size,
+          total: response.data.total,
+          totalPages: response.data.total_pages,
+        });
       }
     } catch (err) {
       setBackendProjectsError('Failed to load projects');
@@ -528,10 +408,11 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
         deleteCall,
         rateCards,
         updateRateCard,
-        // Backend projects
+        // Backend projects with pagination
         backendProjects,
         backendProjectsLoading,
         backendProjectsError,
+        projectsPagination,
         loadBackendProjects,
         // Selected project details
         selectedProjectDetails,
