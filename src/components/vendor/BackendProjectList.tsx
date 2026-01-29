@@ -326,6 +326,12 @@ const BackendProjectList = ({ projects, loading, error, onRefresh, onCreateProje
         project={selectedProject}
         details={selectedProjectDetails}
         loading={selectedProjectLoading}
+        onRefresh={async () => {
+          if (selectedProject) {
+            await loadProjectDetails(selectedProject.id);
+            await onRefresh(currentPage, pageSize);
+          }
+        }}
       />
     </>
   );

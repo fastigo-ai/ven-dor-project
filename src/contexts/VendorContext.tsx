@@ -79,7 +79,7 @@ export interface BackendProjectData {
   vendorId: string;
   // Summary data (fetched from details)
   activeCalls?: number;
-  totalCalls?: number;
+  Calls?: number;
   totalCost?: number;
 }
 

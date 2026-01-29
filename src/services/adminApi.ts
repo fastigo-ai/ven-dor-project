@@ -2,8 +2,7 @@
 // All routes are under /admin/* prefix
 // Requires admin role authentication
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://door2fyvendor-gv4g4.ondigitalocean.app';
-// const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const ADMIN_TOKEN_KEY = 'admin_token';
 
 // Admin token management
@@ -388,17 +387,14 @@ export const blockVendor = async (vendorId: string): Promise<ApiResponse<{ messa
 // ==============================
 
 export interface AdminProject {
-  _id: string;
-  vendor_id: string;
-  name: string;
+  project_id: string;
+  project_name: string;
   support_type: string;
   status: string;
-  l1_support_name?: string;
-  l1_support_number?: string;
   created_at?: string;
 }
 
-// GET /admin/projects?vendor_id=xxx - List projects for a vendor
+// GET /admin/vendors/{vendor_id}/projects - List projects for a vendor
 export const listProjectsByVendor = async (vendorId: string): Promise<ApiResponse<AdminProject[]>> => {
   try {
     const token = getAdminToken();
@@ -406,7 +402,7 @@ export const listProjectsByVendor = async (vendorId: string): Promise<ApiRespons
       return { error: 'Authentication required. Please login again.' };
     }
 
-    const response = await fetch(`${API_BASE_URL}/admin/projects?vendor_id=${encodeURIComponent(vendorId)}`, {
+    const response = await fetch(`${API_BASE_URL}/admin/vendors/${encodeURIComponent(vendorId)}/projects`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -441,32 +437,37 @@ export const listProjectsByVendor = async (vendorId: string): Promise<ApiRespons
 // ==============================
 
 export interface AdminCall {
-  _id: string;
-  project_id: string;
-  state_name: string;
-  branch_name: string;
-  branch_category?: string;
-  branch_code?: string;
-  address: string;
-  pincode: string;
-  contact_name: string;
-  contact_phone: string;
-  assets_count: number;
-  support_type: string;
+  call_id: string;
+  branch_name?: string;
+  pincode?: string;
   asset_type?: string;
-  status: string;
+  assets_count?: number;
+  status?: string;
+  serviceable?: boolean;
   created_at?: string;
 }
 
-// GET /admin/calls?project_id=xxx - List calls for a project
-export const listCallsByProject = async (projectId: string): Promise<ApiResponse<AdminCall[]>> => {
+export interface ProjectDetailsResponse {
+  project: {
+    project_id: string;
+    project_name: string;
+    status: string;
+    support_type: string;
+    sla?: any;
+    created_at?: string;
+  };
+  calls: AdminCall[];
+}
+
+// GET /admin/projects/{project_id}/details - Get project details with calls
+export const getProjectDetails = async (projectId: string): Promise<ApiResponse<ProjectDetailsResponse>> => {
   try {
     const token = getAdminToken();
     if (!token) {
       return { error: 'Authentication required. Please login again.' };
     }
 
-    const response = await fetch(`${API_BASE_URL}/admin/calls?project_id=${encodeURIComponent(projectId)}`, {
+    const response = await fetch(`${API_BASE_URL}/admin/projects/${encodeURIComponent(projectId)}/details`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -483,15 +484,152 @@ export const listCallsByProject = async (projectId: string): Promise<ApiResponse
       if (response.status === 403) {
         return { error: 'Admin access required.' };
       }
-      return { error: error.detail || 'Failed to fetch calls' };
+      return { error: error.detail || 'Failed to fetch project details' };
     }
 
-    const data: AdminCall[] = await response.json();
-    console.log('Backend listCallsByProject response:', data);
+    const data: ProjectDetailsResponse = await response.json();
+    console.log('Backend getProjectDetails response:', data);
 
     return { data };
   } catch (error) {
-    console.error('listCallsByProject error:', error);
+    console.error('getProjectDetails error:', error);
+    return { error: 'Network error. Please try again.' };
+  }
+};
+
+// ==============================
+// PROJECT & CALL WORKFLOW ACTIONS (Admin)
+// ==============================
+
+// POST /admin/projects/{project_id}/pause - Pause project
+export const pauseProject = async (projectId: string): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const token = getAdminToken();
+    if (!token) {
+      return { error: 'Authentication required. Please login again.' };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/admin/projects/${encodeURIComponent(projectId)}/pause`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 401) {
+        clearAdminToken();
+        return { error: 'Session expired. Please login again.' };
+      }
+      return { error: error.detail || 'Failed to pause project' };
+    }
+
+    const result = await response.json();
+    return { data: { message: result.message || 'Project paused successfully' } };
+  } catch (error) {
+    console.error('pauseProject error:', error);
+    return { error: 'Network error. Please try again.' };
+  }
+};
+
+// POST /admin/projects/{project_id}/resume - Resume project
+export const resumeProject = async (projectId: string): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const token = getAdminToken();
+    if (!token) {
+      return { error: 'Authentication required. Please login again.' };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/admin/projects/${encodeURIComponent(projectId)}/resume`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 401) {
+        clearAdminToken();
+        return { error: 'Session expired. Please login again.' };
+      }
+      return { error: error.detail || 'Failed to resume project' };
+    }
+
+    const result = await response.json();
+    return { data: { message: result.message || 'Project resumed successfully' } };
+  } catch (error) {
+    console.error('resumeProject error:', error);
+    return { error: 'Network error. Please try again.' };
+  }
+};
+
+// POST /admin/calls/{call_id}/hold - Hold call with reason
+export const holdCall = async (callId: string, reason: string): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const token = getAdminToken();
+    if (!token) {
+      return { error: 'Authentication required. Please login again.' };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/admin/calls/${encodeURIComponent(callId)}/hold`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ reason }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 401) {
+        clearAdminToken();
+        return { error: 'Session expired. Please login again.' };
+      }
+      return { error: error.detail || 'Failed to hold call' };
+    }
+
+    const result = await response.json();
+    return { data: { message: result.message || 'Call held successfully' } };
+  } catch (error) {
+    console.error('holdCall error:', error);
+    return { error: 'Network error. Please try again.' };
+  }
+};
+
+// POST /admin/calls/{call_id}/resume - Resume call
+export const resumeCall = async (callId: string): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const token = getAdminToken();
+    if (!token) {
+      return { error: 'Authentication required. Please login again.' };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/admin/calls/${encodeURIComponent(callId)}/resume`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 401) {
+        clearAdminToken();
+        return { error: 'Session expired. Please login again.' };
+      }
+      return { error: error.detail || 'Failed to resume call' };
+    }
+
+    const result = await response.json();
+    return { data: { message: result.message || 'Call resumed successfully' } };
+  } catch (error) {
+    console.error('resumeCall error:', error);
     return { error: 'Network error. Please try again.' };
   }
 };

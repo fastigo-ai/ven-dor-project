@@ -50,6 +50,7 @@ interface BackendProjectDetailsDialogProps {
   project: BackendProjectData | null;
   details: ProjectDetailsResponse | null;
   loading: boolean;
+  onRefresh?: () => Promise<void>;
 }
 
 const statusColors: Record<string, string> = {
@@ -95,6 +96,7 @@ const BackendProjectDetailsDialog = ({
   project,
   details,
   loading,
+  onRefresh,
 }: BackendProjectDetailsDialogProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPauseDialog, setShowPauseDialog] = useState(false);
@@ -133,8 +135,10 @@ const BackendProjectDetailsDialog = ({
           description: 'Project and all active calls have been put on hold.',
         });
       }
-      // Reload the project details
-      window.location.reload();
+      // Refresh the project details without page reload
+      if (onRefresh) {
+        await onRefresh();
+      }
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -163,8 +167,10 @@ const BackendProjectDetailsDialog = ({
           description: 'Call has been put on hold successfully.',
         });
       }
-      // Reload the project details
-      window.location.reload();
+      // Refresh the project details without page reload
+      if (onRefresh) {
+        await onRefresh();
+      }
     } catch (error: any) {
       toast({
         title: 'Error',

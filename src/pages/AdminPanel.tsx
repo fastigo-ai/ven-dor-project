@@ -46,6 +46,9 @@ import {
   RefreshCw,
   LogOut,
   Plus,
+  ArrowLeft,
+  Pause,
+  Play,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
@@ -60,12 +63,17 @@ import {
   updateRateCard as updateRateCardApi,
   addRateCard as addRateCardApi,
   listProjectsByVendor,
-  listCallsByProject,
+  getProjectDetails,
+  pauseProject,
+  resumeProject,
+  holdCall,
+  resumeCall,
   Vendor,
   RateCard,
   RateCardCreate,
   AdminProject,
   AdminCall,
+  ProjectDetailsResponse,
   isAdminAuthenticated,
   clearAdminToken,
 } from '@/services/adminApi';
@@ -112,6 +120,13 @@ const AdminPanel = () => {
   const [selectedProject, setSelectedProject] = useState<ProjectData | null>(null);
   const [selectedVendorForProjects, setSelectedVendorForProjects] = useState<string | null>(null);
   const [selectedProjectForCalls, setSelectedProjectForCalls] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('vendors');
+  const [selectedProjectName, setSelectedProjectName] = useState<string | null>(null);
+  
+  // Hold call dialog state
+  const [showHoldCallDialog, setShowHoldCallDialog] = useState(false);
+  const [holdCallId, setHoldCallId] = useState<string | null>(null);
+  const [holdReason, setHoldReason] = useState('');
   
   // Create Rate Card state
   const [showCreateRate, setShowCreateRate] = useState(false);
@@ -182,22 +197,109 @@ const AdminPanel = () => {
     setProjectsLoading(false);
   };
 
-  // Fetch calls by project ID
-  const fetchCallsByProject = async (projectId: string) => {
+  // Fetch project details with calls and navigate to All Calls tab
+  const fetchProjectDetails = async (projectId: string, projectName: string) => {
     setCallsLoading(true);
     setCallsError(null);
     setSelectedProjectForCalls(projectId);
+    setSelectedProjectName(projectName);
     
-    const result = await listCallsByProject(projectId);
+    const result = await getProjectDetails(projectId);
     
     if (result.error) {
       setCallsError(result.error);
       toast({ title: 'Error', description: result.error, variant: 'destructive' });
     } else if (result.data) {
-      setAdminCalls(result.data);
+      setAdminCalls(result.data.calls);
+      // Switch to All Calls tab after loading
+      setActiveTab('calls');
     }
     
     setCallsLoading(false);
+  };
+  
+  // Handle back from calls to projects
+  const handleBackToProjects = () => {
+    setActiveTab('projects');
+  };
+
+  // Helper to check if status indicates paused/on-hold
+  const isHoldStatus = (status: string) => {
+    const normalized = status?.toLowerCase() || '';
+    return normalized === 'on-hold' || normalized === 'on_hold' || normalized === 'hold' || normalized === 'paused';
+  };
+
+  // Handle project pause/resume
+  const handleProjectPauseResume = async (projectId: string, currentStatus: string) => {
+    setActionLoading(true);
+    const isPaused = isHoldStatus(currentStatus);
+    
+    const result = isPaused 
+      ? await resumeProject(projectId)
+      : await pauseProject(projectId);
+    
+    if (result.error) {
+      toast({ title: 'Error', description: result.error, variant: 'destructive' });
+    } else {
+      toast({ 
+        title: isPaused ? 'Project Resumed' : 'Project Paused', 
+        description: result.data?.message 
+      });
+      // Refresh project list
+      if (selectedVendorForProjects) {
+        await fetchProjectsByVendor(selectedVendorForProjects);
+      }
+    }
+    setActionLoading(false);
+  };
+
+  // Open hold call dialog
+  const openHoldCallDialog = (callId: string) => {
+    setHoldCallId(callId);
+    setHoldReason('');
+    setShowHoldCallDialog(true);
+  };
+
+  // Handle call hold with reason
+  const handleHoldCall = async () => {
+    if (!holdCallId || !holdReason.trim()) {
+      toast({ title: 'Error', description: 'Please provide a reason for holding the call', variant: 'destructive' });
+      return;
+    }
+    
+    setActionLoading(true);
+    const result = await holdCall(holdCallId, holdReason.trim());
+    
+    if (result.error) {
+      toast({ title: 'Error', description: result.error, variant: 'destructive' });
+    } else {
+      toast({ title: 'Call Held', description: result.data?.message });
+      setShowHoldCallDialog(false);
+      setHoldCallId(null);
+      setHoldReason('');
+      // Refresh calls list
+      if (selectedProjectForCalls) {
+        await fetchProjectDetails(selectedProjectForCalls, selectedProjectName || '');
+      }
+    }
+    setActionLoading(false);
+  };
+
+  // Handle call resume
+  const handleResumeCall = async (callId: string) => {
+    setActionLoading(true);
+    const result = await resumeCall(callId);
+    
+    if (result.error) {
+      toast({ title: 'Error', description: result.error, variant: 'destructive' });
+    } else {
+      toast({ title: 'Call Resumed', description: result.data?.message });
+      // Refresh calls list
+      if (selectedProjectForCalls) {
+        await fetchProjectDetails(selectedProjectForCalls, selectedProjectName || '');
+      }
+    }
+    setActionLoading(false);
   };
 
   // Initial data fetch
@@ -520,7 +622,7 @@ const AdminPanel = () => {
         </div>
 
         {/* Tabs for different admin sections */}
-        <Tabs defaultValue="vendors" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList>
             <TabsTrigger value="vendors">Vendors</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
@@ -616,7 +718,7 @@ const AdminPanel = () => {
                       <TableHead>Project Name</TableHead>
                       <TableHead>Support Type</TableHead>
                       <TableHead className="text-center">Status</TableHead>
-                      <TableHead>L1 Support</TableHead>
+                      <TableHead>Created At</TableHead>
                       <TableHead className="text-center">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -647,36 +749,59 @@ const AdminPanel = () => {
                       <TableHead>Project Name</TableHead>
                       <TableHead>Support Type</TableHead>
                       <TableHead className="text-center">Status</TableHead>
-                      <TableHead>L1 Support</TableHead>
+                      <TableHead>Created At</TableHead>
                       <TableHead className="text-center">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {adminProjects.map((project) => (
-                      <TableRow key={project._id}>
-                        <TableCell className="font-medium">{project.name}</TableCell>
+                      <TableRow key={project.project_id}>
+                        <TableCell className="font-medium">{project.project_name}</TableCell>
                         <TableCell>
                           <Badge variant="outline">{project.support_type}</Badge>
                         </TableCell>
                         <TableCell className="text-center">
                           <Badge variant="outline" className={cn(
-                            project.status === 'active' && 'bg-success/10 text-success',
-                            project.status === 'on-hold' && 'bg-warning/10 text-warning',
-                            project.status === 'completed' && 'bg-muted text-muted-foreground'
+                            project.status?.toLowerCase() === 'active' && 'bg-success/10 text-success',
+                            isHoldStatus(project.status) && 'bg-warning/10 text-warning',
+                            project.status?.toLowerCase() === 'completed' && 'bg-muted text-muted-foreground'
                           )}>
                             {project.status}
                           </Badge>
                         </TableCell>
-                        <TableCell>{project.l1_support_name || 'N/A'}</TableCell>
+                        <TableCell>{project.created_at ? new Date(project.created_at).toLocaleDateString() : 'N/A'}</TableCell>
                         <TableCell className="text-center">
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => fetchCallsByProject(project._id)}
-                          >
-                            <PhoneCall className="w-4 h-4 mr-1" />
-                            View Calls
-                          </Button>
+                          <div className="flex items-center justify-center gap-2">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => fetchProjectDetails(project.project_id, project.project_name)}
+                            >
+                              <PhoneCall className="w-4 h-4 mr-1" />
+                              View Calls
+                            </Button>
+                            {project.status !== 'completed' && (
+                              <Button 
+                                size="sm" 
+                                variant={isHoldStatus(project.status) ? 'default' : 'outline'}
+                                onClick={() => handleProjectPauseResume(project.project_id, project.status)}
+                                disabled={actionLoading}
+                                className="gap-1"
+                              >
+                                {isHoldStatus(project.status) ? (
+                                  <>
+                                    <Play className="w-4 h-4" />
+                                    Resume
+                                  </>
+                                ) : (
+                                  <>
+                                    <Pause className="w-4 h-4" />
+                                    Pause
+                                  </>
+                                )}
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -688,20 +813,21 @@ const AdminPanel = () => {
 
           <TabsContent value="calls">
             {selectedProjectForCalls && (
-              <div className="mb-4 flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Viewing calls for project:</span>
-                <Badge variant="secondary">
-                  {adminProjects.find(p => p._id === selectedProjectForCalls)?.name || selectedProjectForCalls}
-                </Badge>
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Viewing calls for project:</span>
+                  <Badge variant="secondary">
+                    {selectedProjectName || adminProjects.find(p => p.project_id === selectedProjectForCalls)?.project_name || selectedProjectForCalls}
+                  </Badge>
+                </div>
                 <Button 
-                  variant="ghost" 
+                  variant="outline" 
                   size="sm"
-                  onClick={() => {
-                    setSelectedProjectForCalls(null);
-                    setAdminCalls([]);
-                  }}
+                  onClick={handleBackToProjects}
+                  className="gap-2"
                 >
-                  Clear
+                  <ArrowLeft className="w-4 h-4" />
+                  Back to Projects
                 </Button>
               </div>
             )}
@@ -712,7 +838,7 @@ const AdminPanel = () => {
                 <p className="text-lg font-medium text-foreground mb-2">Failed to load calls</p>
                 <p className="text-muted-foreground mb-4">{callsError}</p>
                 {selectedProjectForCalls && (
-                  <Button variant="outline" onClick={() => fetchCallsByProject(selectedProjectForCalls)}>
+                  <Button variant="outline" onClick={() => fetchProjectDetails(selectedProjectForCalls, '')}>
                     <RefreshCw className="w-4 h-4 mr-2" />
                     Retry
                   </Button>
@@ -730,9 +856,10 @@ const AdminPanel = () => {
                   <TableHeader>
                     <TableRow className="bg-muted/50">
                       <TableHead>Branch Name</TableHead>
-                      <TableHead>Contact</TableHead>
-                      <TableHead>Address</TableHead>
+                      <TableHead>Pincode</TableHead>
+                      <TableHead>Asset Type</TableHead>
                       <TableHead className="text-right">Assets</TableHead>
+                      <TableHead>Serviceable</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -740,9 +867,10 @@ const AdminPanel = () => {
                     {[1, 2, 3].map((i) => (
                       <TableRow key={i}>
                         <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                        <TableCell><Skeleton className="h-5 w-28" /></TableCell>
-                        <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                        <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                        <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                         <TableCell><Skeleton className="h-5 w-12" /></TableCell>
+                        <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                         <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                       </TableRow>
                     ))}
@@ -761,37 +889,77 @@ const AdminPanel = () => {
                   <TableHeader>
                     <TableRow className="bg-muted/50">
                       <TableHead>Branch Name</TableHead>
-                      <TableHead>Contact</TableHead>
-                      <TableHead>Address</TableHead>
+                      <TableHead>Pincode</TableHead>
+                      <TableHead>Asset Type</TableHead>
                       <TableHead className="text-right">Assets</TableHead>
+                      <TableHead>Serviceable</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead className="text-center">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {adminCalls.map((call) => (
-                      <TableRow key={call._id}>
-                        <TableCell className="font-medium">{call.branch_name}</TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="text-sm">{call.contact_name}</p>
-                            <p className="text-xs text-muted-foreground">{call.contact_phone}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="text-sm truncate max-w-[200px]">{call.address}</p>
-                            <p className="text-xs text-muted-foreground">{call.state_name} - {call.pincode}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right font-mono">{call.assets_count}</TableCell>
+                      <TableRow key={call.call_id}>
+                        <TableCell className="font-medium">{call.branch_name || 'N/A'}</TableCell>
+                        <TableCell>{call.pincode || 'N/A'}</TableCell>
+                        <TableCell>{call.asset_type || 'N/A'}</TableCell>
+                        <TableCell className="text-right font-mono">{call.assets_count || 0}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className={cn(
-                            call.status === 'completed' && 'bg-success/10 text-success',
-                            call.status === 'pending' && 'bg-warning/10 text-warning',
-                            call.status === 'assigned' && 'bg-primary/10 text-primary'
+                            call.serviceable && 'bg-success/10 text-success',
+                            !call.serviceable && 'bg-muted text-muted-foreground'
                           )}>
-                            {call.status}
+                            {call.serviceable ? 'Yes' : 'No'}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={cn(
+                            call.status?.toLowerCase() === 'completed' && 'bg-success/10 text-success',
+                            call.status?.toLowerCase() === 'pending' && 'bg-warning/10 text-warning',
+                            call.status?.toLowerCase() === 'assigned' && 'bg-primary/10 text-primary',
+                            isHoldStatus(call.status) && 'bg-warning/10 text-warning'
+                          )}>
+                            {call.status || 'N/A'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {call.status?.toLowerCase() !== 'completed' && call.status?.toLowerCase() !== 'cancelled' && (
+                            isHoldStatus(call.status) ? (
+                              <Button 
+                                size="sm" 
+                                variant="default"
+                                onClick={() => handleResumeCall(call.call_id)}
+                                disabled={actionLoading}
+                                className="gap-1"
+                              >
+                                <Play className="w-4 h-4" />
+                                Resume
+                              </Button>
+                            ) : (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => openHoldCallDialog(call.call_id)}
+                                disabled={actionLoading}
+                                className="gap-1"
+                              >
+                                <Pause className="w-4 h-4" />
+                                Hold
+                              </Button>
+                            )
+                          )}
+                          {(call.status?.toLowerCase() === 'completed' || call.status?.toLowerCase() === 'cancelled') && (
+                            <Badge variant="outline" className={cn(
+                              call.status?.toLowerCase() === 'completed' && 'bg-success/10 text-success',
+                              call.status?.toLowerCase() === 'cancelled' && 'bg-destructive/10 text-destructive'
+                            )}>
+                              {call.status?.toLowerCase() === 'completed' ? (
+                                <><CheckCircle className="w-3 h-3 mr-1" />Done</>
+                              ) : (
+                                <><XCircle className="w-3 h-3 mr-1" />Cancelled</>
+                              )}
+                            </Badge>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1183,6 +1351,59 @@ const AdminPanel = () => {
         project={selectedProject}
         calls={calls}
       />
+
+      {/* Hold Call Dialog */}
+      <Dialog open={showHoldCallDialog} onOpenChange={(open) => {
+        setShowHoldCallDialog(open);
+        if (!open) {
+          setHoldCallId(null);
+          setHoldReason('');
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Hold Call</DialogTitle>
+            <DialogDescription>
+              Provide a reason for holding this call. This will be recorded in the system.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label>Hold Reason <span className="text-destructive">*</span></Label>
+              <textarea 
+                className="w-full min-h-[100px] p-3 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="Enter reason for holding the call..."
+                value={holdReason}
+                onChange={(e) => setHoldReason(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-3">
+              <Button 
+                variant="outline" 
+                className="flex-1" 
+                onClick={() => {
+                  setShowHoldCallDialog(false);
+                  setHoldCallId(null);
+                  setHoldReason('');
+                }}
+                disabled={actionLoading}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="default" 
+                className="flex-1" 
+                onClick={handleHoldCall}
+                disabled={actionLoading || !holdReason.trim()}
+              >
+                {actionLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                <Pause className="w-4 h-4 mr-2" />
+                Hold Call
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
