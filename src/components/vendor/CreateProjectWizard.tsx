@@ -350,7 +350,7 @@ const CreateProjectWizard = ({
           response_time_minutes: 800, // Hardcoded
           resolution_time_minutes: 1550, // Hardcoded
           breach_penalty: 600, // Hardcoded
-          escalation_time_minutes: 1000, // Hardcoded
+          escalation_time_minutes: 750, // Hardcoded
           description: problemDescription || "Standard SLA",
         };
         console.log("Sending SLA payload:", slaPayload);
