@@ -73,7 +73,7 @@ export interface RateCard {
   support_type: string;
   base_price: number;
   per_asset_price: number;
-  sla_minutes: number;
+  sla_hours: number;
   sla_multipliers: SlaMultipliers;
   created_at?: string;
 }
@@ -82,14 +82,14 @@ export interface RateCardCreate {
   support_type: string;
   base_price: number;
   per_asset_price: number;
-  sla_minutes: number;
+  sla_hours: number;
   sla_multipliers: SlaMultipliers;
 }
 
 export interface RateCardUpdate {
   base_price: number;
   per_asset_price: number;
-  sla_minutes: number;
+  sla_hours: number;
   sla_multipliers: SlaMultipliers;
 }
 
@@ -217,7 +217,8 @@ export interface Vendor {
   _id: string;
   company_name: string;
   email: string;
-  phone_number: string;
+  
+phone_number: string;
   gst_number: string;
   business_address: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'BLOCKED';
