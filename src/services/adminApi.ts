@@ -73,7 +73,7 @@ export interface RateCard {
   support_type: string;
   base_price: number;
   per_asset_price: number;
-  sla_hours: number;
+  sla_minutes: number;
   sla_multipliers: SlaMultipliers;
   created_at?: string;
 }
