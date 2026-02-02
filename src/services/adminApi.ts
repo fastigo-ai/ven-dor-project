@@ -1,8 +1,8 @@
 // Admin API Service - Integrates with FastAPI backend
 // All routes are under /admin/* prefix
 // Requires admin role authentication
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://door2fyvendor-gv4g4.ondigitalocean.app';
-// const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://door2fyvendor-gv4g4.ondigitalocean.app';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const ADMIN_TOKEN_KEY = 'admin_token';
 
 // Admin token management
@@ -82,14 +82,14 @@ export interface RateCardCreate {
   support_type: string;
   base_price: number;
   per_asset_price: number;
-  sla_hours: number;
+  sla_minutes: number;
   sla_multipliers: SlaMultipliers;
 }
 
 export interface RateCardUpdate {
   base_price: number;
   per_asset_price: number;
-  sla_hours: number;
+  sla_minutes: number;
   sla_multipliers: SlaMultipliers;
 }
 
