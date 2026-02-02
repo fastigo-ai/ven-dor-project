@@ -1220,7 +1220,7 @@ const AdminPanel = () => {
                     <Phone className="w-5 h-5 text-primary" />
                     <div>
                       <p className="text-xs text-muted-foreground">Phone</p>
-                      <p className="text-sm font-medium text-foreground">{selectedVendor.phone || 'N/A'}</p>
+                      <p className="text-sm font-medium text-foreground">{selectedVendor.phone_number || 'N/A'}</p>
                     </div>
                   </div>
                 </div>
@@ -1229,7 +1229,7 @@ const AdminPanel = () => {
                   <MapPin className="w-5 h-5 text-primary mt-0.5" />
                   <div>
                     <p className="text-xs text-muted-foreground">Business Address</p>
-                    <p className="text-sm font-medium text-foreground">{selectedVendor.address || 'N/A'}</p>
+                    <p className="text-sm font-medium text-foreground">{selectedVendor.business_address || 'N/A'}</p>
                   </div>
                 </div>
 

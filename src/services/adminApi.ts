@@ -1,9 +1,8 @@
 // Admin API Service - Integrates with FastAPI backend
 // All routes are under /admin/* prefix
 // Requires admin role authentication
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://door2fyvendor-gv4g4.ondigitalocean.app';
-
-// const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://door2fyvendor-gv4g4.ondigitalocean.app';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const ADMIN_TOKEN_KEY = 'admin_token';
 
 // Admin token management
@@ -218,9 +217,9 @@ export interface Vendor {
   _id: string;
   company_name: string;
   email: string;
-  phone: string;
+  phone_number: string;
   gst_number: string;
-  address: string;
+  business_address: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'BLOCKED';
   created_at?: string;
   rejection_reason?: string;
