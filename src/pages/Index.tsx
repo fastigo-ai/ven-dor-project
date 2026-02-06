@@ -64,6 +64,7 @@ const Index = () => {
             </Link>
           </div>
         </div>
+        
 
         {/* Features Section */}
         <div className="grid md:grid-cols-3 gap-6 mt-20 max-w-5xl mx-auto">
@@ -119,7 +120,7 @@ const Index = () => {
         {/* Trust Indicators */}
         <div className="mt-20 text-center">
           <p className="text-sm text-muted-foreground mb-4">
-            Trusted by 500+ vendors across India
+            Trusted by vendors across India
           </p>
           <div className="flex justify-center items-center gap-8 opacity-60">
             <div className="font-display font-bold text-2xl text-muted-foreground">
@@ -129,7 +130,10 @@ const Index = () => {
               LRS service
             </div>
             <div className="font-display font-bold text-2xl text-muted-foreground">
-              Dev IT
+              CMS IT Service
+            </div>
+            <div className="font-display font-bold text-2xl text-muted-foreground">
+              Computer junction
             </div>
           </div>
         </div>
