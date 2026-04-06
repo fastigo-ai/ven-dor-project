@@ -135,6 +135,7 @@ const ProjectDetails = () => {
   const calls = details?.calls || [];
 
   const isProjectPaused = status === 'PAUSED' || status === 'ON-HOLD' || status === 'HOLD';
+  const isProjectHeldByAdmin = details?.project?.held_by === 'admin';
 
   // Handle pause/resume project
   const handleProjectPauseResume = async () => {
@@ -217,6 +218,10 @@ const ProjectDetails = () => {
     return call.status?.toUpperCase() === 'HOLD';
   };
 
+  const isCallHeldByAdmin = (call: ProjectCallRow) => {
+    return call.held_by === 'admin';
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -296,8 +301,9 @@ const ProjectDetails = () => {
                       open: true, 
                       type: isProjectPaused ? 'resume' : 'pause' 
                     })}
-                    disabled={actionLoading === 'project' || status === 'COMPLETED'}
+                    disabled={actionLoading === 'project' || status === 'COMPLETED' || (isProjectPaused && isProjectHeldByAdmin)}
                     className={isProjectPaused ? 'bg-success hover:bg-success/90' : 'border-warning text-warning hover:bg-warning/10'}
+                    title={isProjectPaused && isProjectHeldByAdmin ? 'This project was paused by admin. Only admin can resume it.' : undefined}
                   >
                     {actionLoading === 'project' ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -306,7 +312,7 @@ const ProjectDetails = () => {
                     ) : (
                       <Pause className="h-4 w-4 mr-2" />
                     )}
-                    {isProjectPaused ? 'Resume Project' : 'Pause Project'}
+                    {isProjectPaused && isProjectHeldByAdmin ? 'Paused by Admin' : isProjectPaused ? 'Resume Project' : 'Pause Project'}
                   </Button>
                   
                   <Button variant="outline" onClick={() => navigate('/projects')}>
@@ -623,22 +629,29 @@ const ProjectDetails = () => {
                                         Cancelled
                                       </Badge>
                                     ) : onHold ? (
-                                      <Button
-                                        variant="default"
-                                        size="sm"
-                                        onClick={() => handleCallHoldResume(call.call_id, true)}
-                                        disabled={isLoading}
-                                        className="bg-success hover:bg-success/90 h-8 gap-1"
-                                      >
-                                        {isLoading ? (
-                                          <Loader2 className="h-3 w-3 animate-spin" />
-                                        ) : (
-                                          <>
-                                            <Play className="h-3 w-3" />
-                                            Resume
-                                          </>
-                                        )}
-                                      </Button>
+                                      isCallHeldByAdmin(call) ? (
+                                        <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30">
+                                          <Pause className="h-3 w-3 mr-1" />
+                                          Held by Admin
+                                        </Badge>
+                                      ) : (
+                                        <Button
+                                          variant="default"
+                                          size="sm"
+                                          onClick={() => handleCallHoldResume(call.call_id, true)}
+                                          disabled={isLoading}
+                                          className="bg-success hover:bg-success/90 h-8 gap-1"
+                                        >
+                                          {isLoading ? (
+                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                          ) : (
+                                            <>
+                                              <Play className="h-3 w-3" />
+                                              Resume
+                                            </>
+                                          )}
+                                        </Button>
+                                      )
                                     ) : canHold ? (
                                       <Button
                                         variant="outline"

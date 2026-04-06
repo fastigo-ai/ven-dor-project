@@ -118,6 +118,7 @@ const BackendProjectDetailsDialog = ({
   const isPaused = project.status.toUpperCase() === 'PAUSED' || 
                    project.status.toUpperCase() === 'HOLD' || 
                    project.status.toUpperCase() === 'ON-HOLD';
+  const isProjectHeldByAdmin = details?.project?.held_by === 'admin';
 
   const handleProjectPauseResume = async () => {
     setIsLoading(true);
@@ -217,14 +218,20 @@ const BackendProjectDetailsDialog = ({
                       setShowPauseDialog(true);
                     }
                   }}
-                  disabled={isLoading}
+                  disabled={isLoading || (isPaused && isProjectHeldByAdmin)}
                   className={cn(
                     'h-8 gap-1',
-                    isPaused && 'bg-success hover:bg-success/90'
+                    isPaused && !isProjectHeldByAdmin && 'bg-success hover:bg-success/90'
                   )}
+                  title={isPaused && isProjectHeldByAdmin ? 'This project was paused by admin. Only admin can resume it.' : undefined}
                 >
                   {isLoading ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : isPaused && isProjectHeldByAdmin ? (
+                    <>
+                      <Pause className="h-3 w-3" />
+                      <span className="hidden sm:inline">Paused by Admin</span>
+                    </>
                   ) : isPaused ? (
                     <>
                       <Play className="h-3 w-3" />
@@ -424,22 +431,29 @@ const BackendProjectDetailsDialog = ({
                                     Cancelled
                                   </Badge>
                                 ) : onHold ? (
-                                  <Button
-                                    variant="default"
-                                    size="sm"
-                                    onClick={() => handleCallHoldResume(call.call_id, true)}
-                                    disabled={isActioningThis}
-                                    className="bg-success hover:bg-success/90 h-7 gap-1 text-xs"
-                                  >
-                                    {isActioningThis ? (
-                                      <Loader2 className="h-3 w-3 animate-spin" />
-                                    ) : (
-                                      <>
-                                        <Play className="h-3 w-3" />
-                                        Resume
-                                      </>
-                                    )}
-                                  </Button>
+                                  call.held_by === 'admin' ? (
+                                    <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-xs">
+                                      <Pause className="h-3 w-3 mr-1" />
+                                      Held by Admin
+                                    </Badge>
+                                  ) : (
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      onClick={() => handleCallHoldResume(call.call_id, true)}
+                                      disabled={isActioningThis}
+                                      className="bg-success hover:bg-success/90 h-7 gap-1 text-xs"
+                                    >
+                                      {isActioningThis ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : (
+                                        <>
+                                          <Play className="h-3 w-3" />
+                                          Resume
+                                        </>
+                                      )}
+                                    </Button>
+                                  )
                                 ) : canHold ? (
                                   <Button
                                     variant="outline"

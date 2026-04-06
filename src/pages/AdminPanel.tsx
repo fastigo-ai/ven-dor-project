@@ -121,7 +121,7 @@ const AdminPanel = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'PENDING' | 'APPROVED' | 'REJECTED'>('all');
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [editingRate, setEditingRate] = useState<RateCard | null>(null);
-  const [rateForm, setRateForm] = useState({ base_price: 0, per_asset_price: 0, sla_hours: 4, sla_multipliers: { urgent: 1.5, express: 1.25 } as Record<string, number> });
+  const [rateForm, setRateForm] = useState({ base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 } as Record<string, number> });
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [selectedProject, setSelectedProject] = useState<ProjectData | null>(null);
@@ -141,7 +141,7 @@ const AdminPanel = () => {
     support_type: '', 
     base_price: 0, 
     per_asset_price: 0, 
-    sla_hours: 4,
+    sla_minutes: 240,
     sla_multipliers: { urgent: 1.5, express: 1.25 }
   });
 
@@ -331,7 +331,7 @@ const AdminPanel = () => {
     setRateForm({ 
       base_price: rate.base_price, 
       per_asset_price: rate.per_asset_price, 
-      sla_hours: rate.sla_hours,
+      sla_minutes: rate.sla_minutes,
       sla_multipliers: rate.sla_multipliers || { urgent: 1.5, express: 1.25 }
     });
   };
@@ -368,7 +368,7 @@ const AdminPanel = () => {
     } else {
       toast({ title: 'Rate Card Created', description: `${createRateForm.support_type} rate card has been created.` });
       setShowCreateRate(false);
-      setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_hours: 4, sla_multipliers: { urgent: 1.5, express: 1.25 } });
+      setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 } });
       fetchRateCards(); // Refresh rate cards
     }
     
@@ -1014,7 +1014,7 @@ const AdminPanel = () => {
                           <TableCell className="font-medium">{card.support_type}</TableCell>
                           <TableCell className="text-right font-mono">₹{card.base_price}</TableCell>
                           <TableCell className="text-right font-mono">₹{card.per_asset_price}</TableCell>
-                          <TableCell className="text-right font-mono">{card.sla_hours}h</TableCell>
+                          <TableCell className="text-right font-mono">{card.sla_minutes}m</TableCell>
                           <TableCell className="text-right font-mono text-xs">
                             {card.sla_multipliers ? Object.entries(card.sla_multipliers).map(([key, val]) => `${key}: ${val}×`).join(', ') : '-'}
                           </TableCell>
@@ -1050,8 +1050,8 @@ const AdminPanel = () => {
               <Input type="number" value={rateForm.per_asset_price} onChange={(e) => setRateForm({ ...rateForm, per_asset_price: Number(e.target.value) })} />
             </div>
             <div className="space-y-2">
-              <Label>SLA Hours</Label>
-              <Input type="number" value={rateForm.sla_hours} onChange={(e) => setRateForm({ ...rateForm, sla_hours: Number(e.target.value) })} />
+              <Label>SLA Minutes</Label>
+              <Input type="number" value={rateForm.sla_minutes} onChange={(e) => setRateForm({ ...rateForm, sla_minutes: Number(e.target.value) })} />
             </div>
             <div className="space-y-2">
               <Label>Urgent Multiplier</Label>
@@ -1077,7 +1077,7 @@ const AdminPanel = () => {
       {/* Create Rate Card Dialog */}
       <Dialog open={showCreateRate} onOpenChange={(open) => {
         setShowCreateRate(open);
-        if (!open) setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_hours: 4, sla_multipliers: { urgent: 1.5, express: 1.25 } });
+        if (!open) setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 } });
       }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1124,14 +1124,14 @@ const AdminPanel = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label>SLA Hours</Label>
+              <Label>SLA Minutes</Label>
               <Input 
                 type="number" 
-                placeholder="4" 
-                value={createRateForm.sla_hours} 
-                onChange={(e) => setCreateRateForm({ ...createRateForm, sla_hours: Number(e.target.value) })} 
+                placeholder="240" 
+                value={createRateForm.sla_minutes} 
+                onChange={(e) => setCreateRateForm({ ...createRateForm, sla_minutes: Number(e.target.value) })} 
               />
-              <p className="text-xs text-muted-foreground">Service Level Agreement response time in hours</p>
+              <p className="text-xs text-muted-foreground">Service Level Agreement response time in minutes</p>
             </div>
             <div className="space-y-2">
               <Label>Urgent Multiplier</Label>
@@ -1159,7 +1159,7 @@ const AdminPanel = () => {
                 className="flex-1" 
                 onClick={() => {
                   setShowCreateRate(false);
-                  setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_hours: 4, sla_multipliers: { urgent: 1.5, express: 1.25 } });
+                  setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 } });
                 }}
                 disabled={actionLoading}
               >
@@ -1237,7 +1237,7 @@ const AdminPanel = () => {
                     <Phone className="w-5 h-5 text-primary" />
                     <div>
                       <p className="text-xs text-muted-foreground">Phone</p>
-                      <p className="text-sm font-medium text-foreground">{selectedVendor.phone_number || 'N/A'}</p>
+                      <p className="text-sm font-medium text-foreground">{selectedVendor.phone || 'N/A'}</p>
                     </div>
                   </div>
                 </div>
@@ -1246,7 +1246,7 @@ const AdminPanel = () => {
                   <MapPin className="w-5 h-5 text-primary mt-0.5" />
                   <div>
                     <p className="text-xs text-muted-foreground">Business Address</p>
-                    <p className="text-sm font-medium text-foreground">{selectedVendor.business_address || 'N/A'}</p>
+                    <p className="text-sm font-medium text-foreground">{selectedVendor.address || 'N/A'}</p>
                   </div>
                 </div>
 

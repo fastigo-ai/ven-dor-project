@@ -3,8 +3,8 @@
 
 import { getAuthToken, removeAuthToken } from './authApi';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://door2fyvendor-gv4g4.ondigitalocean.app';
-// const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://door2fyvendor-gv4g4.ondigitalocean.app';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 interface ApiResponse<T = unknown> {
   data?: T;
@@ -340,6 +340,7 @@ export interface ProjectDetailsResponse {
     l1_support_name: string;
     l1_support_number: string;
     status: string;
+    held_by?: string | null;
     sla?: {
       priority: string;
       response_time_minutes: number;
@@ -373,6 +374,7 @@ export interface ProjectCallRow {
   serviceable: boolean;
   created_at: string;
   assigned_at?: string | null;
+  held_by?: string | null;
 }
 
 // Paginated response from backend
