@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { getAuthToken, removeAuthToken, getVendorProfile } from '@/services/authApi';
+import { getAuthToken, getRefreshToken, removeAuthToken, getVendorProfile } from '@/services/authApi';
+import { isAdminAuthenticated } from '@/services/adminApi';
 import { useVendor } from '@/contexts/VendorContext';
 import { Loader2 } from 'lucide-react';
 
@@ -28,24 +29,45 @@ const AuthLoader = ({ children }: AuthLoaderProps) => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const isPublicRoute = PUBLIC_ROUTES.some(route => 
+    location.pathname === route || location.pathname.startsWith('/admin')
+  );
+
   useEffect(() => {
     const rehydrateAuth = async () => {
-      const token = getAuthToken();
-      const isPublicRoute = PUBLIC_ROUTES.some(route => 
-        location.pathname === route || location.pathname.startsWith('/admin')
-      );
-
-      // If no token, allow public routes, redirect protected routes to login
-      if (!token) {
-        setIsLoading(false);
-        if (!isPublicRoute && location.pathname === '/dashboard') {
-          navigate('/login');
-        }
-        return;
-      }
+      const access_token = getAuthToken();
+      const refresh_token = getRefreshToken();
 
       // If we already have vendor data, no need to refetch
       if (currentVendor) {
+        setIsLoading(false);
+        return;
+      }
+
+      // If no tokens in localStorage, try cookie-only session rehydration
+      if (!access_token && !refresh_token) {
+        try {
+          const result = await getVendorProfile();
+          if (result.data) {
+            const profile = result.data;
+            setCurrentVendor({
+              id: profile._id,
+              email: profile.email,
+              companyName: profile.company_name || '',
+              gstNumber: profile.gst_number || '',
+              registrationNumber: profile.registration_number || '',
+              businessAddress: profile.business_address || '',
+              contactPersonName: profile.contact_person_name || '',
+              phoneNumber: profile.phone_number || '',
+              websiteUrl: profile.website_url || '',
+              status: profile.status?.toLowerCase() === 'approved' ? 'approved' : 
+                     profile.status?.toLowerCase() === 'pending' ? 'pending' : 'rejected',
+              createdAt: new Date(),
+            });
+          }
+        } catch (e) {
+          // No cookie session
+        }
         setIsLoading(false);
         return;
       }
@@ -55,18 +77,9 @@ const AuthLoader = ({ children }: AuthLoaderProps) => {
         const result = await getVendorProfile();
         
         if (result.error) {
-          // Token is invalid or expired
           console.log('Token validation failed:', result.error);
           removeAuthToken();
-          setIsLoading(false);
-          if (!isPublicRoute) {
-            navigate('/login');
-          }
-          return;
-        }
-
-        if (result.data) {
-          // Successfully rehydrated vendor data
+        } else if (result.data) {
           const profile = result.data;
           setCurrentVendor({
             id: profile._id,
@@ -86,16 +99,29 @@ const AuthLoader = ({ children }: AuthLoaderProps) => {
       } catch (error) {
         console.error('Auth rehydration error:', error);
         removeAuthToken();
-        if (!isPublicRoute) {
-          navigate('/login');
-        }
       }
 
       setIsLoading(false);
     };
 
     rehydrateAuth();
-  }, [location.pathname]); // Re-run on route change
+  }, []); // Run ONCE on mount
+
+  // Redirect protected routes if not logged in
+  useEffect(() => {
+    if (isLoading) return;
+
+    if (!currentVendor && !isPublicRoute) {
+      // Not logged in and trying to access a protected route
+      navigate('/login');
+    } else if (currentVendor && (location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/')) {
+      // Logged in vendor trying to access auth pages or home
+      navigate('/dashboard');
+    } else if (isAdminAuthenticated() && location.pathname === '/admin/login') {
+      // Logged in admin trying to access admin login
+      navigate('/admin');
+    }
+  }, [isLoading, currentVendor, isPublicRoute, navigate, location.pathname]);
 
   if (isLoading) {
     return (

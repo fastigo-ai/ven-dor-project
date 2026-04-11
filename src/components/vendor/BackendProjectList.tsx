@@ -1,6 +1,6 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { BackendProjectData, useVendor } from '@/contexts/VendorContext';
-import { ProjectDetailsResponse, ProjectCallRow } from '@/services/projectApi';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,16 +18,19 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  Pause,
+  Play,
 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
-import BackendProjectDetailsDialog from './BackendProjectDetailsDialog';
+import { pauseProject, resumeProject } from '@/services/projectApi';
 
 interface BackendProjectListProps {
   projects: BackendProjectData[];
@@ -35,6 +38,7 @@ interface BackendProjectListProps {
   error: string | null;
   onRefresh: (page?: number, pageSize?: number) => void | Promise<void>;
   onCreateProject?: () => void;
+  hidePagination?: boolean;
 }
 
 const statusColors: Record<string, string> = {
@@ -47,15 +51,11 @@ const statusColors: Record<string, string> = {
   DRAFT: 'bg-muted/50 text-muted-foreground border-muted',
 };
 
-const BackendProjectList = ({ projects, loading, error, onRefresh, onCreateProject }: BackendProjectListProps) => {
+const BackendProjectList = ({ projects, loading, error, onRefresh, onCreateProject, hidePagination = false }: BackendProjectListProps) => {
+  const navigate = useNavigate();
   const {
-    loadProjectDetails,
-    selectedProjectDetails,
-    selectedProjectLoading,
     projectsPagination,
   } = useVendor();
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [selectedProject, setSelectedProject] = useState<BackendProjectData | null>(null);
   const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null);
 
   // Backend-driven pagination state
@@ -67,21 +67,31 @@ const BackendProjectList = ({ projects, loading, error, onRefresh, onCreateProje
   const startIndex = totalProjects === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endIndex = totalProjects === 0 ? 0 : Math.min(startIndex + projects.length - 1, totalProjects);
 
-  const handleViewDetails = async (project: BackendProjectData, e?: React.MouseEvent) => {
+  const handleViewDetails = (project: BackendProjectData, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    setSelectedProject(project);
-    setLoadingProjectId(project.id);
-    
-    const details = await loadProjectDetails(project.id);
-    setLoadingProjectId(null);
-    
-    if (details) {
-      setDetailsOpen(true);
-    } else {
+    navigate(`/projects/${project.id}`);
+  };
+
+  const handlePauseResume = async (project: BackendProjectData, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const isPaused = project.status.toUpperCase() === 'PAUSED' ||
+      project.status.toUpperCase() === 'HOLD' ||
+      project.status.toUpperCase() === 'ON-HOLD';
+
+    try {
+      if (isPaused) {
+        await resumeProject(project.id);
+        toast({ title: 'Project Resumed' });
+      } else {
+        await pauseProject(project.id);
+        toast({ title: 'Project Paused' });
+      }
+      onRefresh(currentPage, pageSize);
+    } catch (error: any) {
       toast({
         title: 'Error',
-        description: 'Failed to load project details',
-        variant: 'destructive',
+        description: error.message || 'Failed to update status',
+        variant: 'destructive'
       });
     }
   };
@@ -170,13 +180,13 @@ const BackendProjectList = ({ projects, loading, error, onRefresh, onCreateProje
           Refresh
         </Button>
       </div>
-      
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {projects.map((project) => {
           const statusKey = project.status.toUpperCase();
           const isOnHold = statusKey === 'ON-HOLD' || statusKey === 'HOLD';
           const isLoadingThis = loadingProjectId === project.id;
-          
+
           return (
             <Card
               key={project.id}
@@ -220,6 +230,23 @@ const BackendProjectList = ({ projects, loading, error, onRefresh, onCreateProje
                         <Eye className="mr-2 h-4 w-4" />
                         View Details
                       </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={(e) => handlePauseResume(project, e)}
+                        className={isOnHold ? "text-success" : "text-warning"}
+                      >
+                        {isOnHold ? (
+                          <>
+                            <Play className="mr-2 h-4 w-4" />
+                            Resume Project
+                          </>
+                        ) : (
+                          <>
+                            <Pause className="mr-2 h-4 w-4" />
+                            Pause Project
+                          </>
+                        )}
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -235,14 +262,14 @@ const BackendProjectList = ({ projects, loading, error, onRefresh, onCreateProje
                   <div className="text-center">
                     <div className="flex items-center justify-center gap-1 text-primary">
                       <Phone className="h-3.5 w-3.5" />
-                      <span className="font-semibold">{project.totalCalls ?? '-'}</span>
+                      <span className="font-semibold">{project.totalCalls ?? 0}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">Total Calls</p>
                   </div>
                   <div className="text-center">
                     <div className="flex items-center justify-center gap-1 text-success">
                       <Clock className="h-3.5 w-3.5" />
-                      <span className="font-semibold">{project.activeCalls ?? '-'}</span>
+                      <span className="font-semibold">{project.activeCalls ?? 0}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">Active</p>
                   </div>
@@ -250,10 +277,12 @@ const BackendProjectList = ({ projects, loading, error, onRefresh, onCreateProje
                     <div className="flex items-center justify-center gap-1 text-accent">
                       <IndianRupee className="h-3.5 w-3.5" />
                       <span className="font-semibold">
-                        {project.totalCost != null ? `${(project.totalCost / 1000).toFixed(1)}K` : '-'}
+                        {project.totalCost != null && project.totalCost > 0
+                          ? `${(project.totalCost / 1000).toFixed(1)}K`
+                          : '₹0'}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground">Amount</p>
+                    <p className="text-xs">Amount</p>
                   </div>
                 </div>
               </CardContent>
@@ -263,8 +292,8 @@ const BackendProjectList = ({ projects, loading, error, onRefresh, onCreateProje
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-6">
+      {!hidePagination && totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 pt-6 border-t">
           <Button
             variant="outline"
             size="sm"
@@ -273,7 +302,7 @@ const BackendProjectList = ({ projects, loading, error, onRefresh, onCreateProje
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          
+
           <div className="flex items-center gap-1">
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
               // Show first, last, current, and adjacent pages
@@ -281,16 +310,16 @@ const BackendProjectList = ({ projects, loading, error, onRefresh, onCreateProje
                 page === 1 ||
                 page === totalPages ||
                 Math.abs(page - currentPage) <= 1;
-              
+
               const showEllipsisBefore = page === currentPage - 2 && currentPage > 3;
               const showEllipsisAfter = page === currentPage + 2 && currentPage < totalPages - 2;
-              
+
               if (showEllipsisBefore || showEllipsisAfter) {
                 return <span key={page} className="px-2 text-muted-foreground">...</span>;
               }
-              
+
               if (!showPage) return null;
-              
+
               return (
                 <Button
                   key={page}
@@ -304,7 +333,7 @@ const BackendProjectList = ({ projects, loading, error, onRefresh, onCreateProje
               );
             })}
           </div>
-          
+
           <Button
             variant="outline"
             size="sm"
@@ -313,26 +342,13 @@ const BackendProjectList = ({ projects, loading, error, onRefresh, onCreateProje
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
-          
+
           <span className="text-sm text-muted-foreground ml-2">
             {startIndex}-{endIndex} of {totalProjects}
           </span>
         </div>
       )}
 
-      <BackendProjectDetailsDialog
-        open={detailsOpen}
-        onOpenChange={setDetailsOpen}
-        project={selectedProject}
-        details={selectedProjectDetails}
-        loading={selectedProjectLoading}
-        onRefresh={async () => {
-          if (selectedProject) {
-            await loadProjectDetails(selectedProject.id);
-            await onRefresh(currentPage, pageSize);
-          }
-        }}
-      />
     </>
   );
 };

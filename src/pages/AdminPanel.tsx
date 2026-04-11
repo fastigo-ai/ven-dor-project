@@ -84,6 +84,7 @@ import {
   isAdminAuthenticated,
   clearAdminToken,
 } from '@/services/adminApi';
+import AdminFinancialsTab from '@/components/admin/AdminFinancialsTab';
 
 const AdminPanel = () => {
   const navigate = useNavigate();
@@ -121,7 +122,13 @@ const AdminPanel = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'PENDING' | 'APPROVED' | 'REJECTED'>('all');
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [editingRate, setEditingRate] = useState<RateCard | null>(null);
-  const [rateForm, setRateForm] = useState({ base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 } as Record<string, number> });
+  const [rateForm, setRateForm] = useState({ 
+    base_price: 0, 
+    per_asset_price: 0, 
+    sla_minutes: 240, 
+    sla_multipliers: { urgent: 1.5, express: 1.25 } as Record<string, number>,
+    vendor_id: null as string | null
+  });
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [selectedProject, setSelectedProject] = useState<ProjectData | null>(null);
@@ -142,7 +149,8 @@ const AdminPanel = () => {
     base_price: 0, 
     per_asset_price: 0, 
     sla_minutes: 240,
-    sla_multipliers: { urgent: 1.5, express: 1.25 }
+    sla_multipliers: { urgent: 1.5, express: 1.25 },
+    vendor_id: null
   });
 
   // Handle logout
@@ -332,7 +340,8 @@ const AdminPanel = () => {
       base_price: rate.base_price, 
       per_asset_price: rate.per_asset_price, 
       sla_minutes: rate.sla_minutes,
-      sla_multipliers: rate.sla_multipliers || { urgent: 1.5, express: 1.25 }
+      sla_multipliers: rate.sla_multipliers || { urgent: 1.5, express: 1.25 },
+      vendor_id: rate.vendor_id || null
     });
   };
 
@@ -345,7 +354,14 @@ const AdminPanel = () => {
     if (result.error) {
       toast({ title: 'Error', description: result.error, variant: 'destructive' });
     } else {
-      toast({ title: 'Rate Updated', description: `${editingRate.support_type} rates have been updated.` });
+      const scopeText = rateForm.vendor_id 
+        ? `custom rate for ${vendors.find(v => v._id === rateForm.vendor_id)?.company_name}` 
+        : 'global rates';
+        
+      toast({ 
+        title: 'Rate Updated', 
+        description: `${editingRate.support_type} ${scopeText} have been updated.` 
+      });
       setEditingRate(null);
       fetchRateCards(); // Refresh rate cards
     }
@@ -368,7 +384,7 @@ const AdminPanel = () => {
     } else {
       toast({ title: 'Rate Card Created', description: `${createRateForm.support_type} rate card has been created.` });
       setShowCreateRate(false);
-      setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 } });
+      setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 }, vendor_id: null });
       fetchRateCards(); // Refresh rate cards
     }
     
@@ -635,6 +651,10 @@ const AdminPanel = () => {
             <TabsTrigger value="projects">Projects</TabsTrigger>
             <TabsTrigger value="calls">All Calls</TabsTrigger>
             <TabsTrigger value="rates">Rate Cards</TabsTrigger>
+            <TabsTrigger value="financials" className="gap-2">
+              <IndianRupee className="h-4 w-4" />
+              Financials
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="vendors">
@@ -992,10 +1012,11 @@ const AdminPanel = () => {
                   <TableHeader>
                     <TableRow className="bg-muted/50">
                       <TableHead>Support Type</TableHead>
+                      <TableHead>Scope</TableHead>
                       <TableHead className="text-right">Base Price (₹)</TableHead>
                       <TableHead className="text-right">Per Asset (₹)</TableHead>
-                      <TableHead className="text-right">SLA Hours</TableHead>
-                      <TableHead className="text-right">SLA Multipliers</TableHead>
+                      <TableHead className="text-right">SLA (m)</TableHead>
+                      <TableHead className="text-right">Multipliers</TableHead>
                       <TableHead className="text-center">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1010,8 +1031,17 @@ const AdminPanel = () => {
                       </TableRow>
                     ) : (
                       rateCards.map((card) => (
-                        <TableRow key={card._id || card.support_type}>
-                          <TableCell className="font-medium">{card.support_type}</TableCell>
+                        <TableRow key={card._id || `${card.support_type}-${card.vendor_id}`}>
+                          <TableCell className="font-medium capitalize">{card.support_type}</TableCell>
+                          <TableCell>
+                            {card.vendor_id ? (
+                              <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
+                                {vendors.find(v => v._id === card.vendor_id)?.company_name || 'Specific Vendor'}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground">Global Default</Badge>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right font-mono">₹{card.base_price}</TableCell>
                           <TableCell className="text-right font-mono">₹{card.per_asset_price}</TableCell>
                           <TableCell className="text-right font-mono">{card.sla_minutes}m</TableCell>
@@ -1031,6 +1061,10 @@ const AdminPanel = () => {
               </div>
             )}
           </TabsContent>
+
+          <TabsContent value="financials">
+            <AdminFinancialsTab />
+          </TabsContent>
         </Tabs>
       </main>
 
@@ -1040,7 +1074,27 @@ const AdminPanel = () => {
           <DialogHeader>
             <DialogTitle>Edit Rate: {editingRate?.support_type}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 mt-4">
+          <div className="max-h-[65vh] overflow-y-auto pr-2 py-2 -mr-2">
+            <div className="space-y-4">
+              <div className="space-y-2">
+              <Label>Target Scope (Vendor)</Label>
+              <Select 
+                value={rateForm.vendor_id || "global"} 
+                onValueChange={(value) => setRateForm({ ...rateForm, vendor_id: value === "global" ? null : value })}
+              >
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Select target scope" />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  <SelectItem value="global">Global Default (All Vendors)</SelectItem>
+                  {vendors.filter(v => v.status === 'APPROVED').map(vendor => (
+                    <SelectItem key={vendor._id} value={vendor._id}>
+                      {vendor.company_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2">
               <Label>Base Price (₹)</Label>
               <Input type="number" value={rateForm.base_price} onChange={(e) => setRateForm({ ...rateForm, base_price: Number(e.target.value) })} />
@@ -1071,13 +1125,14 @@ const AdminPanel = () => {
               </Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </DialogContent>
+    </Dialog>
 
       {/* Create Rate Card Dialog */}
       <Dialog open={showCreateRate} onOpenChange={(open) => {
         setShowCreateRate(open);
-        if (!open) setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 } });
+        if (!open) setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 }, vendor_id: null });
       }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1086,8 +1141,9 @@ const AdminPanel = () => {
               Add a new support type with pricing details.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div className="space-y-2">
+          <div className="max-h-[65vh] overflow-y-auto pr-2 py-2 -mr-2">
+            <div className="space-y-4">
+              <div className="space-y-2">
               <Label>Support Type *</Label>
               <Select 
                 value={createRateForm.support_type} 
@@ -1104,6 +1160,31 @@ const AdminPanel = () => {
                   <SelectItem value="desktop installation">Desktop Installation</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Target Scope (Vendor) *</Label>
+              <Select 
+                value={createRateForm.vendor_id || "global"} 
+                onValueChange={(value) => setCreateRateForm({ ...createRateForm, vendor_id: value === "global" ? null : value })}
+              >
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Select target scope" />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  <SelectItem value="global">Global Default (All Vendors)</SelectItem>
+                  {vendors.filter(v => v.status === 'APPROVED').map(vendor => (
+                    <SelectItem key={vendor._id} value={vendor._id}>
+                      {vendor.company_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground italic">
+                {createRateForm.vendor_id 
+                  ? "This rate will only apply to the selected vendor, overriding global defaults." 
+                  : "This will be the standard rate for all vendors who don't have an override."}
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Base Price (₹)</Label>
@@ -1159,7 +1240,7 @@ const AdminPanel = () => {
                 className="flex-1" 
                 onClick={() => {
                   setShowCreateRate(false);
-                  setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 } });
+                  setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 }, vendor_id: null });
                 }}
                 disabled={actionLoading}
               >
@@ -1171,8 +1252,9 @@ const AdminPanel = () => {
               </Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </DialogContent>
+    </Dialog>
 
       {/* Vendor Detail Dialog */}
       <Dialog open={!!selectedVendor && !showRejectConfirm} onOpenChange={() => setSelectedVendor(null)}>
