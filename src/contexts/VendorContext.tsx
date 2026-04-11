@@ -5,7 +5,9 @@ import {
   BackendProject, 
   ProjectDetailsResponse, 
   ProjectCallRow,
-  PaginatedProjectsResponse
+  PaginatedProjectsResponse,
+  fetchMyRateCards,
+  RateCard as BackendRateCard
 } from '@/services/projectApi';
 
 export type SupportType = 'pm activity' | 'breakfix' | 'on call';
@@ -26,6 +28,7 @@ export interface CallData {
   assetType: string;
   status: 'pending' | 'assigned' | 'completed' | 'cancelled';
   createdAt: Date;
+  proofImages?: string[];
 }
 
 export interface ProjectData {
@@ -42,14 +45,7 @@ export interface ProjectData {
   totalAmount: number;
 }
 
-export interface RateCard {
-  id: string;
-  serviceType: string;
-  baseRate: number;
-  perKmRate: number;
-  urgentMultiplier: number;
-  isActive: boolean;
-}
+export interface RateCard extends BackendRateCard {}
 
 export interface VendorData {
   email: string;
@@ -69,7 +65,7 @@ export interface VendorData {
 export interface BackendProjectData {
   id: string;
   projectName: string;
-  supportType: string;
+  support_type: string;
   l1SupportName: string;
   l1SupportNumber: string;
   status: string;
@@ -77,10 +73,11 @@ export interface BackendProjectData {
   createdAt: string;
   activatedAt?: string | null;
   vendorId: string;
-  // Summary data (fetched from details)
+  // Summary data
   activeCalls?: number;
   totalCalls?: number;
-  totalCost?: number;
+  completedCalls?: number;
+  totalCost?: number; // Maps to completed_cost from backend
 }
 
 // Pagination state for backend projects
@@ -113,7 +110,7 @@ interface VendorContextType {
   addSingleCall: (call: Omit<CallData, 'id' | 'createdAt' | 'status'>) => void;
   deleteCall: (callId: string) => void;
   rateCards: RateCard[];
-  updateRateCard: (id: string, updates: Partial<RateCard>) => void;
+  updateRateCard: (supportType: string, updates: Partial<RateCard>) => void;
 
   // Backend projects state (with pagination)
   backendProjects: BackendProjectData[];
@@ -121,6 +118,9 @@ interface VendorContextType {
   backendProjectsError: string | null;
   projectsPagination: ProjectsPagination;
   loadBackendProjects: (page?: number, pageSize?: number) => Promise<void>;
+  loadRateCards: () => Promise<void>;
+  rateCardsLoading: boolean;
+  rateCardsError: string | null;
   
   // Selected project details
   selectedProjectDetails: ProjectDetailsResponse | null;
@@ -251,10 +251,30 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const updateRateCard = (id: string, updates: Partial<RateCard>) => {
+  const [rateCardsLoading, setRateCardsLoading] = useState(false);
+  const [rateCardsError, setRateCardsError] = useState<string | null>(null);
+
+  const loadRateCards = useCallback(async () => {
+    setRateCardsLoading(true);
+    setRateCardsError(null);
+    try {
+      const response = await fetchMyRateCards();
+      if (response.error) {
+        setRateCardsError(response.error);
+      } else if (response.data) {
+        setRateCards(response.data);
+      }
+    } catch (err) {
+      setRateCardsError('Failed to load rate cards');
+    } finally {
+      setRateCardsLoading(false);
+    }
+  }, []);
+
+  const updateRateCard = (supportType: string, updates: Partial<RateCard>) => {
     setRateCards((prev) =>
       prev.map((card) =>
-        card.id === id ? { ...card, ...updates } : card
+        card.support_type === supportType ? { ...card, ...updates } : card
       )
     );
   };
@@ -321,7 +341,7 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
         const converted: BackendProjectData[] = response.data.data.map((p) => ({
           id: p.project_id || p._id || '',
           projectName: p.project_name,
-          supportType: p.support_type,
+          support_type: p.support_type,
           l1SupportName: p.l1_support_name || '',
           l1SupportNumber: p.l1_support_number || '',
           status: p.status,
@@ -331,13 +351,14 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
           vendorId: p.vendor_id || '',
           activeCalls: p.active_calls,
           totalCalls: p.total_calls,
-          totalCost: p.total_cost,
+          completedCalls: p.completed_calls,
+          totalCost: p.completed_cost || 0,
         }));
         setBackendProjects(converted);
         setProjectsPagination({
           page: response.data.page,
           pageSize: response.data.page_size,
-          total: response.data.total,
+          total: response.data.total_projects,
           totalPages: response.data.total_pages,
         });
       }
@@ -408,6 +429,9 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
         deleteCall,
         rateCards,
         updateRateCard,
+        loadRateCards,
+        rateCardsLoading,
+        rateCardsError,
         // Backend projects with pagination
         backendProjects,
         backendProjectsLoading,

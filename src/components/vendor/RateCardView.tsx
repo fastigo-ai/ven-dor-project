@@ -1,13 +1,16 @@
 import { RateCard } from '@/contexts/VendorContext';
+import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   IndianRupee, 
-  Truck, 
-  Zap, 
-  Clock, 
-  Package, 
-  AlertTriangle 
+  Wrench, 
+  AlertTriangle, 
+  Phone, 
+  Server, 
+  Monitor,
+  Clock,
+  Sparkles
 } from 'lucide-react';
 import {
   Table,
@@ -23,15 +26,17 @@ interface RateCardViewProps {
 }
 
 const serviceIcons: Record<string, React.ElementType> = {
-  'Standard Delivery': Truck,
-  'Express Delivery': Zap,
-  'Same Day Delivery': Clock,
-  'Bulk Shipment': Package,
-  'Fragile Items': AlertTriangle,
+  'pm activity': Wrench,
+  'breakfix': AlertTriangle,
+  'on call': Phone,
+  'server call': Server,
+  'desktop installation': Monitor,
 };
 
 const RateCardView = ({ rateCards }: RateCardViewProps) => {
-  const activeCards = rateCards.filter((card) => card.isActive);
+  const sortedCards = [...rateCards].sort((a, b) => 
+    a.support_type.localeCompare(b.support_type)
+  );
 
   return (
     <Card>
@@ -47,39 +52,55 @@ const RateCardView = ({ rateCards }: RateCardViewProps) => {
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead className="font-semibold">Service Type</TableHead>
-                <TableHead className="font-semibold text-right">Base Rate</TableHead>
-                <TableHead className="font-semibold text-right">Per KM</TableHead>
+                <TableHead className="font-semibold">Scope</TableHead>
+                <TableHead className="font-semibold text-right">Base Price</TableHead>
+                <TableHead className="font-semibold text-right">Per Asset</TableHead>
                 <TableHead className="font-semibold text-right">Urgent (×)</TableHead>
-                <TableHead className="font-semibold text-center">Status</TableHead>
+                <TableHead className="font-semibold text-center">SLA</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {activeCards.map((card) => {
-                const Icon = serviceIcons[card.serviceType] || Truck;
+              {sortedCards.map((card) => {
+                const Icon = serviceIcons[card.support_type.toLowerCase()] || Wrench;
+                const isCustom = !!card.vendor_id;
+                
                 return (
-                  <TableRow key={card.id}>
+                  <TableRow 
+                    key={card._id || card.support_type}
+                    className={cn(
+                      isCustom && "bg-primary/[0.03] border-l-2 border-l-primary"
+                    )}
+                  >
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Icon className="h-4 w-4 text-primary" />
-                        <span className="font-medium">{card.serviceType}</span>
+                        <span className="font-medium capitalize">{card.support_type}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <span className="font-mono">₹{card.baseRate}</span>
+                    <TableCell>
+                      {isCustom ? (
+                        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1">
+                          <Sparkles className="h-3 w-3" />
+                          Custom
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Standard</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <span className="font-mono">₹{card.perKmRate}</span>
+                      <span className="font-mono">₹{card.base_price}</span>
                     </TableCell>
                     <TableCell className="text-right">
-                      <span className="font-mono">{card.urgentMultiplier}×</span>
+                      <span className="font-mono">₹{card.per_asset_price}</span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="font-mono">{card.sla_multipliers?.urgent || 1.5}×</span>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge 
-                        variant="outline" 
-                        className="bg-success/10 text-success border-success/30"
-                      >
-                        Active
-                      </Badge>
+                      <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        {card.sla_minutes}m
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -88,7 +109,7 @@ const RateCardView = ({ rateCards }: RateCardViewProps) => {
           </Table>
         </div>
         <p className="text-xs text-muted-foreground mt-3">
-          * Rates are subject to change. Contact Door2Fy for custom pricing.
+          * Prices shown reflect the Best Available Rate for your account.
         </p>
       </CardContent>
     </Card>

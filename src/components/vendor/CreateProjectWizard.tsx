@@ -27,6 +27,25 @@ import {
 import { useVendor, RateCard } from "@/contexts/VendorContext";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+
+// Helper to safely format API errors for display
+const formatError = (error: any): string => {
+  if (!error) return "An unknown error occurred";
+  if (typeof error === 'string') return error;
+  
+  if (Array.isArray(error)) {
+    return error.map(err => err.msg || JSON.stringify(err)).join(', ');
+  }
+  
+  if (typeof error === 'object') {
+    if (error.detail) return formatError(error.detail);
+    if (error.message) return error.message;
+    return JSON.stringify(error);
+  }
+  
+  return String(error);
+};
+
 import {
   FolderPlus,
   Upload,
@@ -46,6 +65,8 @@ import {
   Pause,
   Loader2,
   Download,
+  RefreshCw,
+  Search,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -134,6 +155,7 @@ const CreateProjectWizard = ({
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isValidatingAddresses, setIsValidatingAddresses] = useState(false);
+  const [validationMessage, setValidationMessage] = useState("");
 
   // Step 1 data
   const [projectData, setProjectData] = useState<ProjectFormData | null>(null);
@@ -158,6 +180,12 @@ const CreateProjectWizard = ({
   const [locationAnalysis, setLocationAnalysis] = useState<
     LocationWithStatus[]
   >([]);
+  const [validationSummary, setValidationSummary] = useState({
+    serviceable: 0,
+    unserviceable: 0,
+    processing: 0,
+    isProcessing: false
+  });
 
   // Step 4 data - Cost from backend
   const [backendTotalCost, setBackendTotalCost] = useState<number | null>(null);
@@ -324,8 +352,7 @@ const CreateProjectWizard = ({
         );
         toast({
           title: "API Error",
-          description:
-            projectResult.error || "Backend did not return project_id",
+          description: formatError(projectResult.error) || "Backend did not return project_id",
           variant: "destructive",
         });
         // Show error and stop - no fallback to mock data
@@ -384,76 +411,90 @@ const CreateProjectWizard = ({
         });
       }
 
-      // Step 3: Validate addresses via API
-      const validationResult = await validateProjectAddresses(projectId);
+      // Step 3: API Address Validation with Polling
+      let pollingCount = 0;
+      const MAX_POLLS = 12; // ~30 seconds total
+      let validationResult;
 
-      if (validationResult.error || !validationResult.data) {
-        console.warn("Address validation API failed:", validationResult.error);
-        toast({
-          title: "Validation Error",
-          description: "Address validation failed. Please try again.",
-          variant: "destructive",
-        });
-        setIsValidatingAddresses(false);
-        return;
-      } else {
-        // Map API response to locationAnalysis format
+      setValidationMessage("Initiating address validation...");
+
+      while (pollingCount < MAX_POLLS) {
+        validationResult = await validateProjectAddresses(projectId);
+
+        if (validationResult.error) {
+          throw new Error(validationResult.error);
+        }
+
         const apiData = validationResult.data;
-        const serviceableSet = new Set(
-          apiData["Service available locations"]?.map((loc) => loc.call_id) ||
-            [],
-        );
-        const nonServiceableMap = new Map(
-          apiData.non_serviceable_locations?.map((loc) => [
-            loc.call_id,
-            loc.reason,
-          ]) || [],
-        );
+        if (!apiData) throw new Error("No validation data returned");
 
-        // Use API response directly for non-serviceable locations
-        const nonServiceableFromApi = (
-          apiData.non_serviceable_locations || []
-        ).map((ns) => ({
-          stateName: ns.state_name || "",
-          branchName: ns.branch_name || "",
-          branchCategory: "",
-          branchCode: ns.branch_code || "",
-          address: ns.address || "",
-          pincode: ns.pincode || "",
-          contactName: ns.contact_name || "",
-          contactPhone: ns.contact_phone || "",
-          assetsCount: ns.assets_count || 0,
-          supportType: ns.support_type || "",
-          assetType: ns.asset_type || "",
-          serviceable: false,
-          reason: ns.reason || "No engineer available in this area",
-        }));
+        // Update real-time summary even while processing
+        setValidationSummary({
+          serviceable: apiData.summary?.service_available || 0,
+          unserviceable: apiData.summary?.service_not_available || 0,
+          processing: apiData.summary?.processing_count || 0,
+          isProcessing: apiData.is_processing
+        });
 
-        // Use API response directly for serviceable locations
-        const serviceableFromApi = (
-          apiData["Service available locations"] || []
-        ).map((s) => ({
-          stateName: s.state_name || "",
-          branchName: s.branch_name || "",
-          branchCategory: "",
-          branchCode: s.branch_code || "",
-          address: s.address || "",
-          pincode: s.pincode || "",
-          contactName: s.contact_name || "",
-          contactPhone: s.contact_phone || "",
-          assetsCount: s.assets_count || 0,
-          supportType: s.support_type || "",
-          assetType: s.asset_type || "",
-          serviceable: true,
-          reason: undefined,
-        }));
+        if (!apiData.is_processing) {
+          // Task is finished!
+          console.log("Validation complete:", apiData);
 
-        const analysis = [...serviceableFromApi, ...nonServiceableFromApi];
+          const serviceableFromApi = (
+            apiData["Service available locations"] || []
+          ).map((s) => ({
+            stateName: s.state_name || "",
+            branchName: s.branch_name || "",
+            branchCategory: "",
+            branchCode: s.branch_code || "",
+            address: s.address || "",
+            pincode: s.pincode || "",
+            contactName: s.contact_name || "",
+            contactPhone: s.contact_phone || "",
+            assetsCount: s.assets_count || 0,
+            supportType: s.support_type || "",
+            assetType: s.asset_type || "",
+            serviceable: true,
+            reason: undefined,
+          }));
 
-        setLocationAnalysis(analysis);
+          const nonServiceableFromApi = (
+            apiData.non_serviceable_locations || []
+          ).map((ns) => ({
+            stateName: ns.state_name || "",
+            branchName: ns.branch_name || "",
+            branchCategory: "",
+            branchCode: ns.branch_code || "",
+            address: ns.address || "",
+            pincode: ns.pincode || "",
+            contactName: ns.contact_name || "",
+            contactPhone: ns.contact_phone || "",
+            assetsCount: ns.assets_count || 0,
+            supportType: ns.support_type || "",
+            assetType: ns.asset_type || "",
+            serviceable: false,
+            reason: ns.reason || "No engineer available in this area",
+          }));
+
+          setLocationAnalysis([...serviceableFromApi, ...nonServiceableFromApi]);
+          setCurrentStep(3);
+          return;
+        }
+
+        pollingCount++;
+        setValidationMessage(`Validating addresses (${pollingCount}/${MAX_POLLS})...`);
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
 
-      setCurrentStep(3);
+      // If we reached here, polling timed out
+      setIsValidatingAddresses(false);
+      setValidationMessage("Taking longer than expected...");
+      toast({
+        title: "Validation taking longer than expected",
+        description:
+          "The background task is still running. You can click 'Resume' below or check back later.",
+        variant: "destructive",
+      });
     } catch (error) {
       console.error("Address validation error:", error);
       toast({
@@ -475,26 +516,31 @@ const CreateProjectWizard = ({
 
   const getApplicableRate = (): RateCard | undefined => {
     if (!projectData) return undefined;
-    const rateMapping: Record<string, string> = {
-      breakfix: "Standard Delivery",
-      "pm activity": "Bulk Shipment",
-      "on call": "Express Delivery",
-    };
-    const serviceType =
-      rateMapping[projectData.supportType] || "Standard Delivery";
+    
+    // VendorContext standardized support_type, so we search directly
+    const targetType = projectData.supportType.toLowerCase();
+    
+    // Find the prioritized rate (Vendor-specific if exists, else Global Default)
+    // The fetchMyRateCards call already returns prioritized results, so we just find by type.
     return rateCards.find(
-      (card) => card.serviceType === serviceType && card.isActive,
+      (card) => card.support_type.toLowerCase() === targetType
     );
   };
 
   const applicableRate = getApplicableRate();
 
   const calculateLocationCost = (location: ParsedCall): number => {
-    if (!applicableRate) return location.assetsCount * 100;
-    const baseCost = applicableRate.baseRate;
-    const estimatedKm = 10;
-    const kmCost = applicableRate.perKmRate * estimatedKm;
-    return baseCost + kmCost + location.assetsCount * 100;
+    if (!applicableRate) return location.assetsCount * 100; // Fallback
+    
+    const baseCost = applicableRate.base_price;
+    const assetsCost = location.assetsCount * applicableRate.per_asset_price;
+    
+    // Use multiplier based on priority
+    let multiplier = 1.0;
+    if (slaPriority === "HIGH") multiplier = applicableRate.sla_multipliers?.urgent || 1.5;
+    else if (slaPriority === "MEDIUM") multiplier = applicableRate.sla_multipliers?.express || 1.25;
+    
+    return (baseCost + assetsCost) * multiplier;
   };
 
   const totalServiceableValue = serviceableLocations.reduce(
@@ -581,7 +627,7 @@ const CreateProjectWizard = ({
 
       toast({
         title: "Project Activated",
-        description: `Project "${projectData.name}" has been approved and activated successfully!`,
+        description: result.data?.message || `Project "${projectData.name}" has been approved and activated successfully! Engineer dispatching has started.`,
       });
 
       // Refresh project list
@@ -980,34 +1026,73 @@ const CreateProjectWizard = ({
           {currentStep === 3 && (
             <div className="space-y-4 py-4">
               {/* Summary Cards */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
-                  <div className="flex justify-center mb-2">
-                    <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                      <CheckCircle className="h-6 w-6 text-green-600" />
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                  <div className="flex justify-center mb-1">
+                    <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
                     </div>
                   </div>
-                  <p className="text-3xl font-bold text-green-600">
-                    {serviceableLocations.length}
+                  <p className="text-2xl font-bold text-green-600">
+                    {validationSummary.serviceable || serviceableLocations.length}
                   </p>
-                  <p className="text-sm text-muted-foreground">
-                    Service Available
+                  <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                    Serviceable
                   </p>
                 </div>
-                <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-                  <div className="flex justify-center mb-2">
-                    <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                      <XCircle className="h-6 w-6 text-red-500" />
+
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+                  <div className="flex justify-center mb-1">
+                    <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+                      <XCircle className="h-5 w-5 text-red-500" />
                     </div>
                   </div>
-                  <p className="text-3xl font-bold text-red-500">
-                    {nonServiceableLocations.length}
+                  <p className="text-2xl font-bold text-red-500">
+                    {validationSummary.unserviceable || nonServiceableLocations.length}
                   </p>
-                  <p className="text-sm text-muted-foreground">
-                    Service Not Available
+                  <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                    Unserviceable
+                  </p>
+                </div>
+
+                <div className={cn(
+                  "border rounded-lg p-4 text-center transition-colors",
+                  validationSummary.isProcessing 
+                    ? "bg-blue-50 border-blue-200 animate-pulse" 
+                    : "bg-muted/30 border-muted"
+                )}>
+                  <div className="flex justify-center mb-1">
+                    <div className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center",
+                      validationSummary.isProcessing ? "bg-blue-100" : "bg-muted"
+                    )}>
+                      {validationSummary.isProcessing ? (
+                        <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+                      ) : (
+                        <Search className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </div>
+                  </div>
+                  <p className={cn(
+                    "text-2xl font-bold",
+                    validationSummary.isProcessing ? "text-blue-600" : "text-muted-foreground"
+                  )}>
+                    {validationSummary.processing}
+                  </p>
+                  <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                    Processing
                   </p>
                 </div>
               </div>
+
+              {validationSummary.isProcessing && (
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex items-center gap-3">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  <p className="text-xs text-primary font-medium">
+                    Geocoding in progress... Some locations are still being validated by our engine.
+                  </p>
+                </div>
+              )}
 
               {/* Serviceable Locations */}
               {serviceableLocations.length > 0 && (
@@ -1305,25 +1390,53 @@ const CreateProjectWizard = ({
             </div>
           )}
           {currentStep === 2 && (
-            <div className="flex gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={goBack}
-                disabled={isValidatingAddresses}
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </Button>
-              <Button
-                className="flex-1"
-                disabled={!isStep2Valid || isValidatingAddresses}
-                onClick={handleStep2Submit}
-              >
-                {isValidatingAddresses ? "Validating..." : "Validate Addresses"}
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
+            <div className="space-y-4">
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={goBack}
+                  disabled={isValidatingAddresses}
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back
+                </Button>
+                <Button
+                  className="flex-1"
+                  disabled={!isStep2Valid || isValidatingAddresses}
+                  onClick={handleStep2Submit}
+                >
+                  {isValidatingAddresses ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      {validationMessage || "Validating..."}
+                    </>
+                  ) : validationMessage === "Taking longer than expected..." ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Resume Validation
+                    </>
+                  ) : (
+                    <>
+                      Validate Addresses
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </>
+                  )}
+                </Button>
+              </div>
+              {isValidatingAddresses && (
+                <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg flex flex-col items-center gap-3 animate-pulse">
+                  <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                  <p className="text-sm font-medium text-primary">
+                    {validationMessage || "Processing addresses..."}
+                  </p>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Geocoding and mapping locations against available engineer
+                    coverage. This may take a few moments.
+                  </p>
+                </div>
+              )}
             </div>
           )}
           {currentStep === 3 && (
@@ -1412,8 +1525,8 @@ const CreateProjectWizard = ({
             <AlertDialogHeader>
               <AlertDialogTitle>Confirm Project Activation</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to activate this project? This action is
-                final and cannot be undone.
+                Are you sure you want to activate this project? This will start the 
+                matching process to assign engineers to your calls.
                 <div className="mt-3 p-3 bg-muted rounded-lg text-sm">
                   <div className="flex justify-between mb-1">
                     <span>Project:</span>
@@ -1446,7 +1559,7 @@ const CreateProjectWizard = ({
                     Activating...
                   </>
                 ) : (
-                  "Accept & Submit"
+                  "Activate & Dispatch"
                 )}
               </AlertDialogAction>
             </AlertDialogFooter>

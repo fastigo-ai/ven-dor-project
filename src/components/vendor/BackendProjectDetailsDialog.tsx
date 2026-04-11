@@ -41,8 +41,12 @@ import {
   Play,
   Loader2,
   XCircle,
+  Camera,
+  Image as ImageIcon,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import ProjectReportView from './ProjectReportView';
 
 interface BackendProjectDetailsDialogProps {
   open: boolean;
@@ -100,7 +104,17 @@ const BackendProjectDetailsDialog = ({
 }: BackendProjectDetailsDialogProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPauseDialog, setShowPauseDialog] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const [actioningCallId, setActioningCallId] = useState<string | null>(null);
+
+  const handleDownloadReport = () => {
+    setShowReport(true);
+    // Give it a tiny bit of time to render then print
+    setTimeout(() => {
+      window.print();
+      setShowReport(false);
+    }, 500);
+  };
 
   if (!project) return null;
 
@@ -115,9 +129,9 @@ const BackendProjectDetailsDialog = ({
     return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
   };
 
-  const isPaused = project.status.toUpperCase() === 'PAUSED' || 
-                   project.status.toUpperCase() === 'HOLD' || 
-                   project.status.toUpperCase() === 'ON-HOLD';
+  const isPaused = (project.status?.toUpperCase() || '') === 'PAUSED' || 
+                   (project.status?.toUpperCase() || '') === 'HOLD' || 
+                   (project.status?.toUpperCase() || '') === 'ON-HOLD';
   const isProjectHeldByAdmin = details?.project?.held_by === 'admin';
 
   const handleProjectPauseResume = async () => {
@@ -186,7 +200,7 @@ const BackendProjectDetailsDialog = ({
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-3xl h-[85vh] max-h-[85vh] flex flex-col p-0">
+      <DialogContent className="w-[95vw] max-w-3xl h-[85vh] max-h-[85vh] flex flex-col p-0 print:hidden">
         <div className="p-4 sm:p-6 pb-0">
           <DialogHeader>
             <div className="flex items-center gap-3">
@@ -204,10 +218,20 @@ const BackendProjectDetailsDialog = ({
               <div className="flex items-center gap-2 shrink-0">
                 <Badge
                   variant="outline"
-                  className={cn('capitalize', statusColors[project.status.toUpperCase()] || statusColors['PENDING'])}
+                  className={cn('capitalize', statusColors[project.status?.toUpperCase() || ''] || statusColors['PENDING'])}
                 >
-                  {getStatusLabel(project.status)}
+                  {getStatusLabel(project.status || 'PENDING')}
                 </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownloadReport}
+                  disabled={!details || loading}
+                  className="h-8 gap-1 border-primary/30 text-primary hover:bg-primary/5"
+                >
+                  <FileText className="h-3 w-3" />
+                  <span className="hidden sm:inline">Download Report</span>
+                </Button>
                 <Button
                   variant={isPaused ? 'default' : 'outline'}
                   size="sm"
@@ -294,13 +318,15 @@ const BackendProjectDetailsDialog = ({
                     <div>
                       <p className="text-xs text-muted-foreground">Support Type</p>
                       <p className="font-medium">
-                        {supportTypeLabels[project.supportType] || supportTypeLabels[project.supportType.toUpperCase()] || project.supportType}
+                        {supportTypeLabels[project.support_type || ''] || 
+                         supportTypeLabels[project.support_type?.toUpperCase() || ''] || 
+                         project.support_type || 'N/A'}
                       </p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Status</p>
-                      <Badge variant="outline" className={cn('capitalize', statusColors[project.status.toUpperCase()] || statusColors['PENDING'])}>
-                        {getStatusLabel(project.status)}
+                      <Badge variant="outline" className={cn('capitalize', statusColors[project.status?.toUpperCase() || ''] || statusColors['PENDING'])}>
+                        {getStatusLabel(project.status || 'PENDING')}
                       </Badge>
                     </div>
                     <div>
@@ -397,126 +423,177 @@ const BackendProjectDetailsDialog = ({
                         const StatusIcon = callStatusIcons[statusKey] || Clock;
                         const onHold = statusKey === 'HOLD';
                         const canHold = ['PENDING', 'DISPATCHED', 'ASSIGNED'].includes(statusKey);
-                        const isCompleted = statusKey === 'COMPLETED';
+                        const isCompleted = ['COMPLETED', 'FINISH', 'SUCCESS', 'DONE'].includes(statusKey);
                         const isCancelled = statusKey === 'CANCELLED';
                         const isActioningThis = actioningCallId === call.call_id;
 
                         return (
                           <div
                             key={call.call_id}
-                            className="bg-muted/30 rounded-lg p-3 border"
+                            className="bg-muted/30 rounded-lg p-3 border flex flex-col sm:flex-row gap-4"
                           >
-                            <div className="flex items-start justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <User className="h-4 w-4 text-muted-foreground" />
-                                <span className="font-medium text-sm">{call.branch_name || 'N/A'}</span>
-                                <span className="text-xs text-muted-foreground">({call.branch_code})</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge
-                                  variant="outline"
-                                  className={cn('capitalize text-xs', callStatusColors[statusKey] || callStatusColors['PENDING'])}
-                                >
-                                  <StatusIcon className="h-3 w-3 mr-1" />
-                                  {call.status?.toLowerCase() || 'pending'}
-                                </Badge>
-                                {isCompleted ? (
-                                  <Badge variant="outline" className="bg-success/10 text-success border-success/30 text-xs">
-                                    <CheckCircle className="h-3 w-3 mr-1" />
-                                    Done
+                            {/* Left Side: Call Details */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <User className="h-4 w-4 text-muted-foreground" />
+                                  <span className="font-medium text-sm truncate">{call.branch_name || 'N/A'}</span>
+                                  <span className="text-xs text-muted-foreground shrink-0">({call.branch_code})</span>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <Badge
+                                    variant="outline"
+                                    className={cn('capitalize text-xs', callStatusColors[statusKey] || callStatusColors['PENDING'])}
+                                  >
+                                    <StatusIcon className="h-3 w-3 mr-1" />
+                                    {call.status?.toLowerCase() || 'pending'}
                                   </Badge>
-                                ) : isCancelled ? (
-                                  <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30 text-xs">
-                                    <XCircle className="h-3 w-3 mr-1" />
-                                    Cancelled
-                                  </Badge>
-                                ) : onHold ? (
-                                  call.held_by === 'admin' ? (
-                                    <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-xs">
-                                      <Pause className="h-3 w-3 mr-1" />
-                                      Held by Admin
+                                  {isCompleted ? (
+                                    <Badge variant="outline" className="bg-success/10 text-success border-success/30 text-xs">
+                                      <CheckCircle className="h-3 w-3 mr-1" />
+                                      Done
                                     </Badge>
-                                  ) : (
+                                  ) : isCancelled ? (
+                                    <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30 text-xs">
+                                      <XCircle className="h-3 w-3 mr-1" />
+                                      Cancelled
+                                    </Badge>
+                                  ) : onHold ? (
+                                    call.held_by === 'admin' ? (
+                                      <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-xs text-nowrap">
+                                        <Pause className="h-3 w-3 mr-1" />
+                                        Held by Admin
+                                      </Badge>
+                                    ) : (
+                                      <Button
+                                        variant="default"
+                                        size="sm"
+                                        onClick={() => handleCallHoldResume(call.call_id, true)}
+                                        disabled={isActioningThis}
+                                        className="bg-success hover:bg-success/90 h-7 gap-1 text-xs"
+                                      >
+                                        {isActioningThis ? (
+                                          <Loader2 className="h-3 w-3 animate-spin" />
+                                        ) : (
+                                          <>
+                                            <Play className="h-3 w-3" />
+                                            Resume
+                                          </>
+                                        )}
+                                      </Button>
+                                    )
+                                  ) : canHold ? (
                                     <Button
-                                      variant="default"
+                                      variant="outline"
                                       size="sm"
-                                      onClick={() => handleCallHoldResume(call.call_id, true)}
+                                      onClick={() => handleCallHoldResume(call.call_id, false)}
                                       disabled={isActioningThis}
-                                      className="bg-success hover:bg-success/90 h-7 gap-1 text-xs"
+                                      className="border-warning text-warning hover:bg-warning/10 h-7 gap-1 text-xs"
                                     >
                                       {isActioningThis ? (
                                         <Loader2 className="h-3 w-3 animate-spin" />
                                       ) : (
                                         <>
-                                          <Play className="h-3 w-3" />
-                                          Resume
+                                          <Pause className="h-3 w-3" />
+                                          Hold
                                         </>
                                       )}
                                     </Button>
-                                  )
-                                ) : canHold ? (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleCallHoldResume(call.call_id, false)}
-                                    disabled={isActioningThis}
-                                    className="border-warning text-warning hover:bg-warning/10 h-7 gap-1 text-xs"
-                                  >
-                                    {isActioningThis ? (
-                                      <Loader2 className="h-3 w-3 animate-spin" />
-                                    ) : (
-                                      <>
-                                        <Pause className="h-3 w-3" />
-                                        Hold
-                                      </>
-                                    )}
-                                  </Button>
-                                ) : null}
+                                  ) : null}
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground mb-2">
+                                <div className="flex items-center gap-1">
+                                  <Wrench className="h-3 w-3" />
+                                  {call.asset_type || 'N/A'} ({call.asset_count ?? 0} assets)
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  {call.support_type || 'N/A'}
+                                </div>
+                                {call.sla_priority && (
+                                  <div className="flex items-center gap-1">
+                                    <AlertCircle className="h-3 w-3" />
+                                    Priority: {call.sla_priority}
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-1">
+                                  <CheckCircle className="h-3 w-3" />
+                                  {call.serviceable ? 'Serviceable' : 'Not Serviceable'}
+                                </div>
+                                {call.engineer_name && (
+                                  <div className="flex items-center gap-1">
+                                    <Truck className="h-3 w-3" />
+                                    {call.engineer_name}
+                                  </div>
+                                )}
+                                {call.distance_km != null && (
+                                  <div className="flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />
+                                    {call.distance_km} km
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex items-start gap-1 text-xs text-muted-foreground">
+                                <MapPin className="h-3 w-3 mt-0.5 shrink-0" />
+                                <span className="line-clamp-1">
+                                  {call.address || call.pincode ? (
+                                    <>
+                                      {call.address && <>{call.address} - </>}
+                                      {call.pincode || 'No Pincode'}
+                                    </>
+                                  ) : 'No address available'}
+                                </span>
                               </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                              <div className="flex items-center gap-1">
-                                <Wrench className="h-3 w-3" />
-                                {call.asset_type || 'N/A'} ({call.asset_count ?? 0} assets)
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                {call.support_type || 'N/A'}
-                              </div>
-                              {call.sla_priority && (
-                                <div className="flex items-center gap-1">
-                                  <AlertCircle className="h-3 w-3" />
-                                  Priority: {call.sla_priority}
+
+                            {/* Right Side: Proof Images Preview */}
+                            {(() => {
+                              const displayImages = call.proof_images && call.proof_images.length > 0 
+                                ? call.proof_images 
+                                : ((call as any).images || (call as any).photos || []);
+                              
+                              if (!isCompleted || displayImages.length === 0) return null;
+
+                              return (
+                                <div className="shrink-0 flex sm:flex-col gap-2 items-center sm:items-end justify-center sm:justify-start pt-2 sm:pt-0 border-t sm:border-t-0 sm:border-l border-dashed border-border/50 sm:pl-4">
+                                  <div className="hidden sm:flex items-center gap-1.5 mb-1 text-primary/70">
+                                    <Camera className="h-3 w-3" />
+                                    <span className="text-[10px] font-semibold uppercase tracking-wider">Proofs</span>
+                                  </div>
+                                  <div className="flex sm:flex-col gap-2">
+                                    {displayImages.slice(0, 2).map((imgUrl, idx) => (
+                                      <div 
+                                        key={idx}
+                                        className="relative h-12 w-12 sm:h-14 sm:w-14 rounded-md overflow-hidden bg-muted flex-shrink-0 cursor-zoom-in hover:ring-2 hover:ring-primary/40 transition-all border border-border"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          window.open(imgUrl, '_blank');
+                                        }}
+                                      >
+                                        <img 
+                                          src={imgUrl} 
+                                          alt={`Proof ${idx + 1}`} 
+                                          className="h-full w-full object-cover"
+                                          onError={(e) => {
+                                            (e.target as HTMLImageElement).src = 'https://placehold.co/100x100?text=No+Preview';
+                                          }}
+                                        />
+                                        {idx === 1 && displayImages.length > 2 && (
+                                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-[10px] font-bold">
+                                            +{displayImages.length - 2}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                    {/* Mobile-only Camera Icon if images exist but we're in row mode */}
+                                    <div className="sm:hidden flex items-center justify-center h-12 w-12 rounded-md bg-primary/5 border border-dashed border-primary/20">
+                                      <Camera className="h-5 w-5 text-primary/60" />
+                                    </div>
+                                  </div>
                                 </div>
-                              )}
-                              <div className="flex items-center gap-1">
-                                <CheckCircle className="h-3 w-3" />
-                                {call.serviceable ? 'Serviceable' : 'Not Serviceable'}
-                              </div>
-                              {call.engineer_name && (
-                                <div className="flex items-center gap-1">
-                                  <Truck className="h-3 w-3" />
-                                  {call.engineer_name}
-                                </div>
-                              )}
-                              {call.distance_km != null && (
-                                <div className="flex items-center gap-1">
-                                  <MapPin className="h-3 w-3" />
-                                  {call.distance_km} km
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex items-start gap-1 mt-1 text-xs text-muted-foreground">
-                              <MapPin className="h-3 w-3 mt-0.5 shrink-0" />
-                              <span className="line-clamp-1">
-                                {call.address || call.pincode ? (
-                                  <>
-                                    {call.address && <>{call.address} - </>}
-                                    {call.pincode || 'No Pincode'}
-                                  </>
-                                ) : 'No address available'}
-                              </span>
-                            </div>
+                              );
+                            })()}
                           </div>
                         );
                       })}
@@ -570,6 +647,13 @@ const BackendProjectDetailsDialog = ({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    {/* Hidden Project Report for Printing */}
+    {showReport && details && (
+      <div className="fixed inset-0 z-[9999] bg-white overflow-auto print:static print:z-auto print:block hidden">
+        <ProjectReportView details={details} />
+      </div>
+    )}
     </>
   );
 };

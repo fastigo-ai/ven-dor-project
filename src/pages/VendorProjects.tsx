@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import Logo from '@/components/Logo';
 import CreateProjectWizard from '@/components/vendor/CreateProjectWizard';
+import { cn } from '@/lib/utils';
 import { removeAuthToken } from '@/services/authApi';
 import {
   FolderKanban,
@@ -44,6 +45,7 @@ import {
   TrendingUp,
   Clock,
 } from 'lucide-react';
+import { getDraftProjectStep } from '@/utils/projectStatus';
 
 const statusColors: Record<string, string> = {
   ACTIVE: 'bg-success/10 text-success border-success/30',
@@ -66,15 +68,15 @@ const supportTypeLabels: Record<string, string> = {
 
 const VendorProjects = () => {
   const navigate = useNavigate();
-  const { 
-    currentVendor, 
-    setCurrentVendor, 
-    backendProjects, 
-    backendProjectsLoading, 
+  const {
+    currentVendor,
+    setCurrentVendor,
+    backendProjects,
+    backendProjectsLoading,
     backendProjectsError,
-    loadBackendProjects 
+    loadBackendProjects
   } = useVendor();
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -113,8 +115,10 @@ const VendorProjects = () => {
   };
 
   const getInitials = (name: string) => {
+    if (!name) return 'V';
     return name
       .split(' ')
+      .filter(Boolean)
       .map((n) => n[0])
       .join('')
       .toUpperCase()
@@ -128,9 +132,9 @@ const VendorProjects = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => navigate('/dashboard')}
                 className="hover:bg-muted"
               >
@@ -138,13 +142,13 @@ const VendorProjects = () => {
               </Button>
               <Logo />
             </div>
-            
+
             <div className="flex items-center gap-3">
               <Button variant="ghost" size="icon" className="relative">
                 <Bell className="h-5 w-5 text-muted-foreground" />
                 <span className="absolute -top-1 -right-1 w-2 h-2 bg-destructive rounded-full" />
               </Button>
-              
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="flex items-center gap-2 hover:bg-muted">
@@ -191,8 +195,8 @@ const VendorProjects = () => {
               </h1>
               <p className="text-muted-foreground mt-1">Manage and track all your service projects</p>
             </div>
-            
-            <Button 
+
+            <Button
               onClick={() => setCreateProjectOpen(true)}
               className="gradient-primary text-primary-foreground shadow-glow"
             >
@@ -216,7 +220,7 @@ const VendorProjects = () => {
                 </div>
               </CardContent>
             </Card>
-            
+
             <Card className="border-none shadow-card bg-gradient-to-br from-success/5 to-success/10">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
@@ -230,7 +234,7 @@ const VendorProjects = () => {
                 </div>
               </CardContent>
             </Card>
-            
+
             <Card className="border-none shadow-card bg-gradient-to-br from-warning/5 to-warning/10">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
@@ -244,7 +248,7 @@ const VendorProjects = () => {
                 </div>
               </CardContent>
             </Card>
-            
+
             <Card className="border-none shadow-card bg-gradient-to-br from-accent to-accent/50">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
@@ -272,7 +276,7 @@ const VendorProjects = () => {
               className="pl-10"
             />
           </div>
-          
+
           <div className="flex gap-2">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[140px]">
@@ -286,7 +290,7 @@ const VendorProjects = () => {
                 <SelectItem value="DRAFT">Draft</SelectItem>
               </SelectContent>
             </Select>
-            
+
             <div className="flex border rounded-lg overflow-hidden">
               <Button
                 variant={viewMode === 'grid' ? 'default' : 'ghost'}
@@ -305,9 +309,9 @@ const VendorProjects = () => {
                 <List className="h-4 w-4" />
               </Button>
             </div>
-            
-            <Button 
-              variant="outline" 
+
+            <Button
+              variant="outline"
               size="icon"
               onClick={handleRefresh}
               disabled={isRefreshing}
@@ -347,7 +351,7 @@ const VendorProjects = () => {
               </div>
               <h3 className="text-lg font-semibold mb-2">No Projects Found</h3>
               <p className="text-muted-foreground mb-6">
-                {searchQuery || statusFilter !== 'all' 
+                {searchQuery || statusFilter !== 'all'
                   ? 'Try adjusting your filters'
                   : 'Create your first project to get started'}
               </p>
@@ -362,9 +366,9 @@ const VendorProjects = () => {
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredProjects.map((project) => (
-              <ProjectCard 
-                key={project.id} 
-                project={project} 
+              <ProjectCard
+                key={project.id}
+                project={project}
                 onClick={() => navigate(`/projects/${project.id}`)}
               />
             ))}
@@ -372,8 +376,8 @@ const VendorProjects = () => {
         ) : (
           <div className="space-y-3">
             {filteredProjects.map((project) => (
-              <ProjectListItem 
-                key={project.id} 
+              <ProjectListItem
+                key={project.id}
                 project={project}
                 onClick={() => navigate(`/projects/${project.id}`)}
               />
@@ -382,8 +386,8 @@ const VendorProjects = () => {
         )}
       </main>
 
-      <CreateProjectWizard 
-        open={createProjectOpen} 
+      <CreateProjectWizard
+        open={createProjectOpen}
         onOpenChange={(open) => {
           setCreateProjectOpen(open);
           if (!open) loadBackendProjects();
@@ -396,10 +400,10 @@ const VendorProjects = () => {
 // Project Card Component
 const ProjectCard = ({ project, onClick }: { project: BackendProjectData; onClick: () => void }) => {
   const status = project.status?.toUpperCase() || 'DRAFT';
-  const supportType = supportTypeLabels[project.supportType?.toLowerCase()] || project.supportType || 'N/A';
-  
+  const supportType = supportTypeLabels[project.support_type?.toLowerCase()] || project.support_type || 'N/A';
+
   return (
-    <Card 
+    <Card
       className="group cursor-pointer hover:shadow-lg transition-all duration-300 hover:border-primary/30 overflow-hidden"
       onClick={onClick}
     >
@@ -413,7 +417,19 @@ const ProjectCard = ({ project, onClick }: { project: BackendProjectData; onClic
             {status}
           </Badge>
         </div>
-        
+
+        {status === 'DRAFT' && (() => {
+          const stepInfo = getDraftProjectStep(project);
+          return (
+            <div className={cn("mb-4 p-2 rounded-lg border text-xs flex items-center justify-between", stepInfo.color)}>
+              <span className="font-semibold flex items-center gap-1">
+                <Clock className="h-3 w-3" /> Step {stepInfo.step}/4: {stepInfo.label}
+              </span>
+              <span className="underline font-bold">Continue →</span>
+            </div>
+          );
+        })()}
+
         <div className="space-y-2 text-sm text-muted-foreground mb-4">
           <div className="flex items-center gap-2">
             <Briefcase className="h-4 w-4" />
@@ -424,7 +440,7 @@ const ProjectCard = ({ project, onClick }: { project: BackendProjectData; onClic
             <span>{new Date(project.createdAt).toLocaleDateString()}</span>
           </div>
         </div>
-        
+
         <div className="flex items-center justify-between pt-3 border-t">
           <div className="flex gap-4 text-sm">
             <div>
@@ -446,10 +462,10 @@ const ProjectCard = ({ project, onClick }: { project: BackendProjectData; onClic
 // Project List Item Component
 const ProjectListItem = ({ project, onClick }: { project: BackendProjectData; onClick: () => void }) => {
   const status = project.status?.toUpperCase() || 'DRAFT';
-  const supportType = supportTypeLabels[project.supportType?.toLowerCase()] || project.supportType || 'N/A';
-  
+  const supportType = supportTypeLabels[project.support_type?.toLowerCase()] || project.support_type || 'N/A';
+
   return (
-    <Card 
+    <Card
       className="group cursor-pointer hover:shadow-md transition-all duration-200 hover:border-primary/30"
       onClick={onClick}
     >
@@ -459,7 +475,7 @@ const ProjectListItem = ({ project, onClick }: { project: BackendProjectData; on
             <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
               <FolderKanban className="h-5 w-5 text-primary" />
             </div>
-            
+
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
                 {project.projectName}
@@ -471,7 +487,7 @@ const ProjectListItem = ({ project, onClick }: { project: BackendProjectData; on
               </div>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-6">
             <div className="hidden sm:flex gap-6 text-sm">
               <div className="text-center">
@@ -483,11 +499,20 @@ const ProjectListItem = ({ project, onClick }: { project: BackendProjectData; on
                 <p className="text-xs text-muted-foreground">Cost</p>
               </div>
             </div>
-            
+
             <Badge variant="outline" className={statusColors[status] || statusColors.DRAFT}>
               {status}
             </Badge>
-            
+
+            {status === 'DRAFT' && (() => {
+              const stepInfo = getDraftProjectStep(project);
+              return (
+                <Badge variant="secondary" className="hidden md:flex gap-1 items-center bg-primary/5 text-primary hover:bg-primary/10 transition-colors">
+                  <Clock className="h-3 w-3" /> Step {stepInfo.step}: {stepInfo.label}
+                </Badge>
+              );
+            })()}
+
             <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
           </div>
         </div>

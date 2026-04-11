@@ -1,8 +1,8 @@
 // Admin API Service - Integrates with FastAPI backend
 // All routes are under /admin/* prefix
 // Requires admin role authentication
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://door2fyvendor-gv4g4.ondigitalocean.app';
-// const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://door2fyvendor-gv4g4.ondigitalocean.app';
 const ADMIN_TOKEN_KEY = 'admin_token';
 
 // Admin token management
@@ -45,6 +45,7 @@ export const adminLogin = async (
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ email, password }),
+      credentials: 'include'
     });
 
     const data = await response.json();
@@ -73,8 +74,9 @@ export interface RateCard {
   support_type: string;
   base_price: number;
   per_asset_price: number;
-  sla_hours: number;
-  sla_multipliers: SlaMultipliers;
+  sla_minutes: number;
+  sla_multipliers: Record<string, number>;
+  vendor_id?: string | null;
   created_at?: string;
 }
 
@@ -82,31 +84,30 @@ export interface RateCardCreate {
   support_type: string;
   base_price: number;
   per_asset_price: number;
-  sla_hours: number;
-  sla_multipliers: SlaMultipliers;
+  sla_minutes: number;
+  sla_multipliers: Record<string, number>;
+  vendor_id?: string | null;
 }
 
 export interface RateCardUpdate {
   base_price: number;
   per_asset_price: number;
-  sla_hours: number;
-  sla_multipliers: SlaMultipliers;
+  sla_minutes: number;
+  sla_multipliers: Record<string, number>;
+  vendor_id?: string | null;
 }
 
 // GET /admin/rate-cards - List all rate cards
 export const listRateCards = async (): Promise<ApiResponse<RateCard[]>> => {
   try {
     const token = getAdminToken();
-    if (!token) {
-      return { error: 'Authentication required. Please login again.' };
-    }
-
     const response = await fetch(`${API_BASE_URL}/admin/rate-cards`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
+      credentials: 'include'
     });
 
     if (!response.ok) {
@@ -135,17 +136,14 @@ export const listRateCards = async (): Promise<ApiResponse<RateCard[]>> => {
 export const addRateCard = async (payload: RateCardCreate): Promise<ApiResponse<{ message: string }>> => {
   try {
     const token = getAdminToken();
-    if (!token) {
-      return { error: 'Authentication required. Please login again.' };
-    }
-
     const response = await fetch(`${API_BASE_URL}/admin/rate-card`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       body: JSON.stringify(payload),
+      credentials: 'include'
     });
 
     if (!response.ok) {
@@ -174,17 +172,14 @@ export const addRateCard = async (payload: RateCardCreate): Promise<ApiResponse<
 export const updateRateCard = async (supportType: string, payload: RateCardUpdate): Promise<ApiResponse<{ message: string }>> => {
   try {
     const token = getAdminToken();
-    if (!token) {
-      return { error: 'Authentication required. Please login again.' };
-    }
-
     const response = await fetch(`${API_BASE_URL}/admin/rate-card/${encodeURIComponent(supportType)}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       body: JSON.stringify(payload),
+      credentials: 'include'
     });
 
     if (!response.ok) {
@@ -230,10 +225,6 @@ phone_number: string;
 export const listVendors = async (status?: string): Promise<ApiResponse<Vendor[]>> => {
   try {
     const token = getAdminToken();
-    if (!token) {
-      return { error: 'Authentication required. Please login again.' };
-    }
-
     const url = status 
       ? `${API_BASE_URL}/admin/vendors?status=${encodeURIComponent(status)}`
       : `${API_BASE_URL}/admin/vendors`;
@@ -242,8 +233,9 @@ export const listVendors = async (status?: string): Promise<ApiResponse<Vendor[]
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
+      credentials: 'include'
     });
 
     if (!response.ok) {
@@ -272,16 +264,13 @@ export const listVendors = async (status?: string): Promise<ApiResponse<Vendor[]
 export const approveVendor = async (vendorId: string): Promise<ApiResponse<{ message: string }>> => {
   try {
     const token = getAdminToken();
-    if (!token) {
-      return { error: 'Authentication required. Please login again.' };
-    }
-
     const response = await fetch(`${API_BASE_URL}/admin/vendors/${vendorId}/approve`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
+      credentials: 'include'
     });
 
     if (!response.ok) {
@@ -310,17 +299,14 @@ export const approveVendor = async (vendorId: string): Promise<ApiResponse<{ mes
 export const rejectVendor = async (vendorId: string, reason?: string): Promise<ApiResponse<{ message: string }>> => {
   try {
     const token = getAdminToken();
-    if (!token) {
-      return { error: 'Authentication required. Please login again.' };
-    }
-
     const response = await fetch(`${API_BASE_URL}/admin/vendors/${vendorId}/reject`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       body: JSON.stringify({ reason }),
+      credentials: 'include'
     });
 
     if (!response.ok) {
@@ -349,16 +335,13 @@ export const rejectVendor = async (vendorId: string, reason?: string): Promise<A
 export const blockVendor = async (vendorId: string): Promise<ApiResponse<{ message: string }>> => {
   try {
     const token = getAdminToken();
-    if (!token) {
-      return { error: 'Authentication required. Please login again.' };
-    }
-
     const response = await fetch(`${API_BASE_URL}/admin/vendors/${vendorId}/block`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
+      credentials: 'include'
     });
 
     if (!response.ok) {
@@ -399,16 +382,13 @@ export interface AdminProject {
 export const listProjectsByVendor = async (vendorId: string): Promise<ApiResponse<AdminProject[]>> => {
   try {
     const token = getAdminToken();
-    if (!token) {
-      return { error: 'Authentication required. Please login again.' };
-    }
-
     const response = await fetch(`${API_BASE_URL}/admin/vendors/${encodeURIComponent(vendorId)}/projects`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
+      credentials: 'include'
     });
 
     if (!response.ok) {
@@ -464,16 +444,13 @@ export interface ProjectDetailsResponse {
 export const getProjectDetails = async (projectId: string): Promise<ApiResponse<ProjectDetailsResponse>> => {
   try {
     const token = getAdminToken();
-    if (!token) {
-      return { error: 'Authentication required. Please login again.' };
-    }
-
     const response = await fetch(`${API_BASE_URL}/admin/projects/${encodeURIComponent(projectId)}/details`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
+      credentials: 'include'
     });
 
     if (!response.ok) {
@@ -506,16 +483,13 @@ export const getProjectDetails = async (projectId: string): Promise<ApiResponse<
 export const pauseProject = async (projectId: string): Promise<ApiResponse<{ message: string }>> => {
   try {
     const token = getAdminToken();
-    if (!token) {
-      return { error: 'Authentication required. Please login again.' };
-    }
-
     const response = await fetch(`${API_BASE_URL}/admin/projects/${encodeURIComponent(projectId)}/pause`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
+      credentials: 'include'
     });
 
     if (!response.ok) {
@@ -539,16 +513,13 @@ export const pauseProject = async (projectId: string): Promise<ApiResponse<{ mes
 export const resumeProject = async (projectId: string): Promise<ApiResponse<{ message: string }>> => {
   try {
     const token = getAdminToken();
-    if (!token) {
-      return { error: 'Authentication required. Please login again.' };
-    }
-
     const response = await fetch(`${API_BASE_URL}/admin/projects/${encodeURIComponent(projectId)}/resume`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
+      credentials: 'include'
     });
 
     if (!response.ok) {
@@ -572,17 +543,14 @@ export const resumeProject = async (projectId: string): Promise<ApiResponse<{ me
 export const holdCall = async (callId: string, reason: string): Promise<ApiResponse<{ message: string }>> => {
   try {
     const token = getAdminToken();
-    if (!token) {
-      return { error: 'Authentication required. Please login again.' };
-    }
-
     const response = await fetch(`${API_BASE_URL}/admin/calls/${encodeURIComponent(callId)}/hold`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       body: JSON.stringify({ reason }),
+      credentials: 'include'
     });
 
     if (!response.ok) {
@@ -606,16 +574,13 @@ export const holdCall = async (callId: string, reason: string): Promise<ApiRespo
 export const resumeCall = async (callId: string): Promise<ApiResponse<{ message: string }>> => {
   try {
     const token = getAdminToken();
-    if (!token) {
-      return { error: 'Authentication required. Please login again.' };
-    }
-
     const response = await fetch(`${API_BASE_URL}/admin/calls/${encodeURIComponent(callId)}/resume`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
+      credentials: 'include'
     });
 
     if (!response.ok) {
@@ -632,5 +597,137 @@ export const resumeCall = async (callId: string): Promise<ApiResponse<{ message:
   } catch (error) {
     console.error('resumeCall error:', error);
     return { error: 'Network error. Please try again.' };
+  }
+};
+// ==============================
+// FINANCIALS & PAYOUTS MANAGEMENT (Admin)
+// ==============================
+
+export interface FinancialOverview {
+  UPCOMING: { amount: number; count: number };
+  DUE: { amount: number; count: number };
+  PAID: { amount: number; count: number };
+  config: { maturation_days: number };
+}
+
+export interface AdminPayoutRecord {
+  _id: string;
+  vendor_id: string;
+  project_id: string;
+  call_id: string;
+  amount: number;
+  status: string;
+  completed_at: string;
+  eligible_at: string;
+  created_at: string;
+  paid_at?: string;
+  // UI helpers
+  vendor_name?: string;
+  project_name?: string;
+}
+
+// GET /admin/payouts/overview - Get global financial status
+export const getFinancialOverview = async (): Promise<ApiResponse<FinancialOverview>> => {
+  try {
+    const token = getAdminToken();
+    const response = await fetch(`${API_BASE_URL}/admin/payouts/overview`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      return { error: error.detail || 'Failed to fetch financial overview' };
+    }
+
+    const data = await response.json();
+    return { data };
+  } catch (error) {
+    console.error('getFinancialOverview error:', error);
+    return { error: 'Network error' };
+  }
+};
+
+// GET /admin/payouts/pending-approval - List matured payouts ready for settlement
+export const listPendingPayouts = async (): Promise<ApiResponse<AdminPayoutRecord[]>> => {
+  try {
+    const token = getAdminToken();
+    const response = await fetch(`${API_BASE_URL}/admin/payouts/pending-approval`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      return { error: error.detail || 'Failed to fetch pending payouts' };
+    }
+
+    const data = await response.json();
+    return { data };
+  } catch (error) {
+    console.error('listPendingPayouts error:', error);
+    return { error: 'Network error' };
+  }
+};
+
+// POST /admin/payouts/mark-as-paid - Process settlements
+export const markPayoutsAsPaid = async (payoutIds: string[]): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const token = getAdminToken();
+    const response = await fetch(`${API_BASE_URL}/admin/payouts/mark-as-paid`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({ payout_ids: payoutIds }),
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      return { error: error.detail || 'Failed to process payouts' };
+    }
+
+    const result = await response.json();
+    return { data: result };
+  } catch (error) {
+    console.error('markPayoutsAsPaid error:', error);
+    return { error: 'Network error' };
+  }
+};
+
+// POST /admin/payouts/update-config - Change maturation period
+export const updateMaturationPolicy = async (days: number): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const token = getAdminToken();
+    const response = await fetch(`${API_BASE_URL}/admin/payouts/update-config`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({ maturation_days: days }),
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      return { error: error.detail || 'Failed to update policy' };
+    }
+
+    const result = await response.json();
+    return { data: result };
+  } catch (error) {
+    console.error('updateMaturationPolicy error:', error);
+    return { error: 'Network error' };
   }
 };
