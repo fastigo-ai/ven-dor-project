@@ -53,6 +53,10 @@ export const apiFetch = async (endpoint: string, options: FetchOptions = {}) => 
         console.error('Refresh token invalid or expired');
         removeAuthToken();
         removeRefreshToken();
+        // Force redirect to login on fatal auth failure
+        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+          window.location.href = '/login?expired=true';
+        }
       }
     }
 
