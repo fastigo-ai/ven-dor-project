@@ -54,8 +54,13 @@ export const apiFetch = async (endpoint: string, options: FetchOptions = {}) => 
         removeAuthToken();
         removeRefreshToken();
         // Force redirect to login on fatal auth failure
-        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-          window.location.href = '/login?expired=true';
+        if (typeof window !== 'undefined') {
+          const isLoginPage = window.location.pathname.startsWith('/login');
+          const isAdminPage = window.location.pathname.startsWith('/admin');
+          
+          if (!isLoginPage && !isAdminPage) {
+            window.location.href = '/login?expired=true';
+          }
         }
       }
     }

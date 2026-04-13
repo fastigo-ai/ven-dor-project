@@ -29,9 +29,8 @@ const AuthLoader = ({ children }: AuthLoaderProps) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const isPublicRoute = PUBLIC_ROUTES.some(route => 
-    location.pathname === route || location.pathname.startsWith('/admin')
-  );
+  const isPublicRoute = PUBLIC_ROUTES.includes(location.pathname);
+  const isAdminRoute = location.pathname.startsWith('/admin');
 
   useEffect(() => {
     const rehydrateAuth = async () => {
@@ -111,17 +110,24 @@ const AuthLoader = ({ children }: AuthLoaderProps) => {
   useEffect(() => {
     if (isLoading) return;
 
+    // Separate logic for Admin routes and Vendor routes
+    if (isAdminRoute) {
+      // Admin authentication is handled separately within the Admin components (e.g., AdminPanel)
+      // AuthLoader should stay out of the way for /admin routes unless specific global logic is needed
+      if (isAdminAuthenticated() && location.pathname === '/admin/login') {
+        navigate('/admin');
+      }
+      return; 
+    }
+
     if (!currentVendor && !isPublicRoute) {
-      // Not logged in and trying to access a protected route
+      // Not logged in and trying to access a protected vendor route
       navigate('/login');
     } else if (currentVendor && (location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/')) {
       // Logged in vendor trying to access auth pages or home
       navigate('/dashboard');
-    } else if (isAdminAuthenticated() && location.pathname === '/admin/login') {
-      // Logged in admin trying to access admin login
-      navigate('/admin');
     }
-  }, [isLoading, currentVendor, isPublicRoute, navigate, location.pathname]);
+  }, [isLoading, currentVendor, isPublicRoute, isAdminRoute, navigate, location.pathname]);
 
   if (isLoading) {
     return (
