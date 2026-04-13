@@ -26,7 +26,7 @@ const Index = () => {
           </div>
 
           <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground mb-6 animate-slide-up leading-tight">
-            Partner with{" "}
+            Partner with
             <span className="inline-flex items-center gap-2 text-primary">
               <img
                 src={image}
