@@ -22,7 +22,7 @@ import {
 import Logo from '@/components/Logo';
 import CreateProjectWizard from '@/components/vendor/CreateProjectWizard';
 import { cn } from '@/lib/utils';
-import { removeAuthToken } from '@/services/authApi';
+import { logoutUser } from '@/services/authApi';
 import {
   FolderKanban,
   Plus,
@@ -89,9 +89,9 @@ const VendorProjects = () => {
     }
   }, [currentVendor]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logoutUser();
     setCurrentVendor(null);
-    removeAuthToken();
     navigate('/login');
   };
 

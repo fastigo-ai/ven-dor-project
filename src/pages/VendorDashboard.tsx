@@ -44,7 +44,7 @@ import { toast } from '@/hooks/use-toast';
 import { fetchMyRateCards, fetchDashboardStats, type DashboardStats } from '@/services/projectApi';
 import { FinancialsTab } from '@/components/vendor/FinancialsTab';
 import { NotificationDropdown } from '@/components/vendor/NotificationDropdown';
-import { removeAuthToken } from '@/services/authApi';
+import { logoutUser } from '@/services/authApi';
 
 const VendorDashboard = () => {
   const navigate = useNavigate();
@@ -91,9 +91,9 @@ const VendorDashboard = () => {
     return null;
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logoutUser();
     setCurrentVendor(null);
-    removeAuthToken();
     toast({
       title: 'Logged out',
       description: 'You have been successfully logged out.',

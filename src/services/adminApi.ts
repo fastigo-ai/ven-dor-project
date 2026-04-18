@@ -1,25 +1,35 @@
 // Admin API Service - Integrates with FastAPI backend
 // All routes are under /admin/* prefix
 // Requires admin role authentication
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-// const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://door2fyvendor-gv4g4.ondigitalocean.app';
+const envUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = typeof window !== 'undefined' && (envUrl.includes('localhost') || envUrl.includes('127.0.0.1'))
+  ? `http://${window.location.hostname}:8000`
+  : envUrl;
 const ADMIN_TOKEN_KEY = 'admin_token';
 
 // Admin token management
-export const getAdminToken = (): string | null => {
-  return localStorage.getItem(ADMIN_TOKEN_KEY);
-};
-
-export const setAdminToken = (token: string): void => {
-  localStorage.setItem(ADMIN_TOKEN_KEY, token);
-};
-
 export const clearAdminToken = (): void => {
   localStorage.removeItem(ADMIN_TOKEN_KEY);
 };
 
 export const isAdminAuthenticated = (): boolean => {
-  return !!getAdminToken();
+  return localStorage.getItem('admin_authenticated') === 'true';
+};
+
+// Admin Logout
+export const adminLogout = async (): Promise<void> => {
+  try {
+    await fetch(`${API_BASE_URL}/admin/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include'
+    });
+  } catch (error) {
+    console.error('Admin logout error:', error);
+  } finally {
+    clearAdminToken();
+    localStorage.removeItem('admin_authenticated');
+  }
 };
 
 interface ApiResponse<T = unknown> {
@@ -53,6 +63,9 @@ export const adminLogin = async (
     if (!response.ok) {
       return { error: data.detail || 'Invalid credentials' };
     }
+
+    // Mark as authenticated locally (JWT is in HttpOnly cookie)
+    localStorage.setItem('admin_authenticated', 'true');
 
     return { data };
   } catch (error) {
@@ -100,12 +113,10 @@ export interface RateCardUpdate {
 // GET /admin/rate-cards - List all rate cards
 export const listRateCards = async (): Promise<ApiResponse<RateCard[]>> => {
   try {
-    const token = getAdminToken();
     const response = await fetch(`${API_BASE_URL}/admin/rate-cards`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       credentials: 'include'
     });
@@ -135,12 +146,10 @@ export const listRateCards = async (): Promise<ApiResponse<RateCard[]>> => {
 // POST /admin/rate-card - Add new rate card
 export const addRateCard = async (payload: RateCardCreate): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const token = getAdminToken();
     const response = await fetch(`${API_BASE_URL}/admin/rate-card`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       body: JSON.stringify(payload),
       credentials: 'include'
@@ -171,12 +180,10 @@ export const addRateCard = async (payload: RateCardCreate): Promise<ApiResponse<
 // PUT /admin/rate-card/{support_type} - Update rate card
 export const updateRateCard = async (supportType: string, payload: RateCardUpdate): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const token = getAdminToken();
     const response = await fetch(`${API_BASE_URL}/admin/rate-card/${encodeURIComponent(supportType)}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       body: JSON.stringify(payload),
       credentials: 'include'
@@ -224,16 +231,14 @@ phone_number: string;
 // GET /admin/vendors - List vendors with optional status filter
 export const listVendors = async (status?: string): Promise<ApiResponse<Vendor[]>> => {
   try {
-    const token = getAdminToken();
     const url = status 
-      ? `${API_BASE_URL}/admin/vendors?status=${encodeURIComponent(status)}`
+      ? `${API_BASE_URL}/admin/vendors?status=${status}` 
       : `${API_BASE_URL}/admin/vendors`;
-
+      
     const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       credentials: 'include'
     });
@@ -263,12 +268,10 @@ export const listVendors = async (status?: string): Promise<ApiResponse<Vendor[]
 // POST /admin/vendors/{vendor_id}/approve - Approve vendor
 export const approveVendor = async (vendorId: string): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const token = getAdminToken();
     const response = await fetch(`${API_BASE_URL}/admin/vendors/${vendorId}/approve`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       credentials: 'include'
     });
@@ -298,12 +301,10 @@ export const approveVendor = async (vendorId: string): Promise<ApiResponse<{ mes
 // POST /admin/vendors/{vendor_id}/reject - Reject vendor (if endpoint exists)
 export const rejectVendor = async (vendorId: string, reason?: string): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const token = getAdminToken();
     const response = await fetch(`${API_BASE_URL}/admin/vendors/${vendorId}/reject`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       body: JSON.stringify({ reason }),
       credentials: 'include'
@@ -334,12 +335,10 @@ export const rejectVendor = async (vendorId: string, reason?: string): Promise<A
 // POST /admin/vendors/{vendor_id}/block - Block vendor (if endpoint exists)
 export const blockVendor = async (vendorId: string): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const token = getAdminToken();
     const response = await fetch(`${API_BASE_URL}/admin/vendors/${vendorId}/block`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       credentials: 'include'
     });
@@ -381,12 +380,10 @@ export interface AdminProject {
 // GET /admin/vendors/{vendor_id}/projects - List projects for a vendor
 export const listProjectsByVendor = async (vendorId: string): Promise<ApiResponse<AdminProject[]>> => {
   try {
-    const token = getAdminToken();
     const response = await fetch(`${API_BASE_URL}/admin/vendors/${encodeURIComponent(vendorId)}/projects`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       credentials: 'include'
     });
@@ -443,12 +440,10 @@ export interface ProjectDetailsResponse {
 // GET /admin/projects/{project_id}/details - Get project details with calls
 export const getProjectDetails = async (projectId: string): Promise<ApiResponse<ProjectDetailsResponse>> => {
   try {
-    const token = getAdminToken();
     const response = await fetch(`${API_BASE_URL}/admin/projects/${encodeURIComponent(projectId)}/details`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       credentials: 'include'
     });
@@ -482,12 +477,10 @@ export const getProjectDetails = async (projectId: string): Promise<ApiResponse<
 // POST /admin/projects/{project_id}/pause - Pause project
 export const pauseProject = async (projectId: string): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const token = getAdminToken();
     const response = await fetch(`${API_BASE_URL}/admin/projects/${encodeURIComponent(projectId)}/pause`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       credentials: 'include'
     });
@@ -512,12 +505,10 @@ export const pauseProject = async (projectId: string): Promise<ApiResponse<{ mes
 // POST /admin/projects/{project_id}/resume - Resume project
 export const resumeProject = async (projectId: string): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const token = getAdminToken();
     const response = await fetch(`${API_BASE_URL}/admin/projects/${encodeURIComponent(projectId)}/resume`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       credentials: 'include'
     });
@@ -542,12 +533,10 @@ export const resumeProject = async (projectId: string): Promise<ApiResponse<{ me
 // POST /admin/calls/{call_id}/hold - Hold call with reason
 export const holdCall = async (callId: string, reason: string): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const token = getAdminToken();
     const response = await fetch(`${API_BASE_URL}/admin/calls/${encodeURIComponent(callId)}/hold`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       body: JSON.stringify({ reason }),
       credentials: 'include'
@@ -573,12 +562,10 @@ export const holdCall = async (callId: string, reason: string): Promise<ApiRespo
 // POST /admin/calls/{call_id}/resume - Resume call
 export const resumeCall = async (callId: string): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const token = getAdminToken();
     const response = await fetch(`${API_BASE_URL}/admin/calls/${encodeURIComponent(callId)}/resume`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       credentials: 'include'
     });
@@ -629,12 +616,10 @@ export interface AdminPayoutRecord {
 // GET /admin/payouts/overview - Get global financial status
 export const getFinancialOverview = async (): Promise<ApiResponse<FinancialOverview>> => {
   try {
-    const token = getAdminToken();
     const response = await fetch(`${API_BASE_URL}/admin/payouts/overview`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       credentials: 'include'
     });
@@ -655,12 +640,10 @@ export const getFinancialOverview = async (): Promise<ApiResponse<FinancialOverv
 // GET /admin/payouts/pending-approval - List matured payouts ready for settlement
 export const listPendingPayouts = async (): Promise<ApiResponse<AdminPayoutRecord[]>> => {
   try {
-    const token = getAdminToken();
     const response = await fetch(`${API_BASE_URL}/admin/payouts/pending-approval`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       credentials: 'include'
     });
@@ -681,12 +664,10 @@ export const listPendingPayouts = async (): Promise<ApiResponse<AdminPayoutRecor
 // POST /admin/payouts/mark-as-paid - Process settlements
 export const markPayoutsAsPaid = async (payoutIds: string[]): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const token = getAdminToken();
     const response = await fetch(`${API_BASE_URL}/admin/payouts/mark-as-paid`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       body: JSON.stringify({ payout_ids: payoutIds }),
       credentials: 'include'
@@ -708,12 +689,10 @@ export const markPayoutsAsPaid = async (payoutIds: string[]): Promise<ApiRespons
 // POST /admin/payouts/update-config - Change maturation period
 export const updateMaturationPolicy = async (days: number): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const token = getAdminToken();
     const response = await fetch(`${API_BASE_URL}/admin/payouts/update-config`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       body: JSON.stringify({ maturation_days: days }),
       credentials: 'include'

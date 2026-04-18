@@ -154,8 +154,25 @@ const initialCalls: CallData[] = [];
 const initialVendors: VendorData[] = [];
 
 export const VendorProvider = ({ children }: { children: ReactNode }) => {
-  const [currentEmail, setCurrentEmail] = useState('');
-  const [isVerified, setIsVerified] = useState(false);
+  const [currentEmail, setCurrentEmail] = useState(() => localStorage.getItem('reg_email') || '');
+  const [isVerified, setIsVerified] = useState(() => localStorage.getItem('reg_verified') === 'true');
+  const [isGoogleUser, setIsGoogleUser] = useState(() => localStorage.getItem('reg_is_google') === 'true');
+  
+  const setPersistedEmail = (email: string) => {
+    setCurrentEmail(email);
+    localStorage.setItem('reg_email', email);
+  };
+
+  const setPersistedVerified = (verified: boolean) => {
+    setIsVerified(verified);
+    localStorage.setItem('reg_verified', String(verified));
+  };
+  
+  const setPersistedGoogleUser = (value: boolean) => {
+    setIsGoogleUser(value);
+    localStorage.setItem('reg_is_google', String(value));
+  };
+
   const [vendors, setVendors] = useState<VendorData[]>(initialVendors);
   const [currentVendor, setCurrentVendor] = useState<VendorData | null>(null);
   const [vendorPasswords, setVendorPasswords] = useState<Record<string, string>>({});
@@ -179,8 +196,6 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
   const [selectedProjectLoading, setSelectedProjectLoading] = useState(false);
   const [selectedProjectError, setSelectedProjectError] = useState<string | null>(null);
 
-  // Registration flow state
-  const [isGoogleUser, setIsGoogleUser] = useState(false);
 
   const addVendor = (vendorData: Omit<VendorData, 'id' | 'createdAt' | 'status'>) => {
     const newVendor: VendorData = {
@@ -416,10 +431,13 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
   return (
     <VendorContext.Provider
       value={{
+        // Registration state - using new persisted setters
         currentEmail,
-        setCurrentEmail,
+        setCurrentEmail: setPersistedEmail,
         isVerified,
-        setIsVerified,
+        setIsVerified: setPersistedVerified,
+        isGoogleUser,
+        setIsGoogleUser: setPersistedGoogleUser,
         vendors,
         addVendor,
         updateVendorStatus,
@@ -452,9 +470,6 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
         loadProjectDetails,
         clearSelectedProject,
         addBackendProject,
-        // Registration state
-        isGoogleUser,
-        setIsGoogleUser,
       }}
     >
       {children}
