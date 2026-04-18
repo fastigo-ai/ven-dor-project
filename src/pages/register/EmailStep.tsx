@@ -8,7 +8,8 @@ import { useVendor } from '@/contexts/VendorContext';
 import AuthLayout from '@/components/AuthLayout';
 import StepIndicator from '@/components/StepIndicator';
 import { z } from 'zod';
-import { registerEmail } from '@/services/authApi';
+import { registerEmail, loginWithGoogle, setAuthToken } from '@/services/authApi';
+import { GoogleLogin } from '@react-oauth/google';
 
 const emailSchema = z.string().email('Please enter a valid email address');
 
@@ -18,7 +19,7 @@ const EmailStep = () => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { setCurrentEmail } = useVendor();
+  const { setCurrentEmail, setIsVerified, setIsGoogleUser, loadBackendProjects } = useVendor();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,7 +101,71 @@ const EmailStep = () => {
         </Button>
       </form>
 
-      <p className="text-center text-sm text-muted-foreground mt-6">
+      <div className="relative mt-6 mb-4">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-background px-2 text-muted-foreground font-semibold">
+            Or Sign up with
+          </span>
+        </div>
+      </div>
+
+      <div className="flex justify-center mb-6">
+        <GoogleLogin
+          onSuccess={async (credentialResponse) => {
+            if (credentialResponse.credential) {
+              const response = await loginWithGoogle(credentialResponse.credential);
+              
+              if (response.data?.user?.status === 'DRAFT' || response.data?.user?.profile_status !== 'COMPLETED') {
+                setCurrentEmail(response.data?.user?.email || '');
+                setIsVerified(true);
+                setIsGoogleUser(true);
+                
+                if (response.data?.access_token) setAuthToken(response.data.access_token);
+                
+                toast({ 
+                  title: 'Google Identity Verified', 
+                  description: 'Please set a password to secure your account.' 
+                });
+                
+                if (!response.data?.user?.password_set) {
+                  navigate('/register/password');
+                } else {
+                  navigate('/register/company');
+                }
+                return;
+              }
+
+              if (response.error) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Authentication failed',
+                  description: response.error,
+                });
+                return;
+              }
+
+              await loadBackendProjects();
+              toast({ title: 'Welcome!', description: 'Logged in with Google' });
+              navigate('/dashboard');
+            }
+          }}
+          onError={() => {
+            toast({
+              variant: 'destructive',
+              title: 'Login Failed',
+              description: 'Google authentication failed',
+            });
+          }}
+          useOneTap
+          shape="rectangular"
+          width="100%"
+        />
+      </div>
+
+      <p className="text-center text-sm text-muted-foreground">
         Already registered?{' '}
         <a href="/login" className="text-primary hover:underline font-medium">
           Sign in here

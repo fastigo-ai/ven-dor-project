@@ -11,7 +11,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import AuthLayout from '@/components/AuthLayout';
 import { useVendor } from '@/contexts/VendorContext';
 import { toast } from '@/hooks/use-toast';
-import { loginUser, setAuthToken, getVendorProfile } from '@/services/authApi';
+import { loginUser, setAuthToken, getVendorProfile, loginWithGoogle } from '@/services/authApi';
+import { GoogleLogin } from '@react-oauth/google';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -22,7 +23,13 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 const Login = () => {
   const navigate = useNavigate();
-  const { setCurrentVendor, loadBackendProjects } = useVendor();
+  const { 
+    setCurrentVendor, 
+    loadBackendProjects, 
+    setCurrentEmail, 
+    setIsVerified, 
+    setIsGoogleUser 
+  } = useVendor();
   const [showPassword, setShowPassword] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{
     type: 'pending' | 'rejected' | 'error';
@@ -198,6 +205,104 @@ const Login = () => {
         <Button type="submit" className="w-full" disabled={isSubmitting}>
           {isSubmitting ? 'Signing in...' : 'Sign In'}
         </Button>
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-background px-2 text-muted-foreground">
+              Or continue with
+            </span>
+          </div>
+        </div>
+
+        <div className="flex justify-center">
+          <GoogleLogin
+            onSuccess={async (credentialResponse) => {
+              if (credentialResponse.credential) {
+                const response = await loginWithGoogle(credentialResponse.credential);
+                
+                // Handle the unified registration flow for Google (DRAFT status)
+                if (response.data?.user?.status === 'DRAFT' || response.data?.user?.profile_status !== 'COMPLETED') {
+                  setCurrentEmail(response.data?.user?.email || '');
+                  setIsVerified(true);
+                  setIsGoogleUser(true);
+                  
+                  // Store tokens if they were returned even in DRAFT state
+                  if (response.data?.access_token) setAuthToken(response.data.access_token);
+                  
+                  toast({ 
+                    title: 'Google Identity Verified', 
+                    description: 'Please set a password to secure your account.' 
+                  });
+                  
+                  // Decide where to send them based on what's missing
+                  if (!response.data?.user?.password_set) {
+                    navigate('/register/password');
+                  } else {
+                    navigate('/register/company');
+                  }
+                  return;
+                }
+
+                if (response.error) {
+                  if (response.error === 'PENDING_APPROVAL') {
+                    setStatusMessage({
+                      type: 'pending',
+                      message: 'Your account is under review. Please wait for admin approval.',
+                    });
+                    return;
+                  }
+                  toast({
+                    variant: 'destructive',
+                    title: 'Authentication failed',
+                    description: response.error,
+                  });
+                  return;
+                }
+                
+                // Fetch profile and navigate
+                if (response.data?.user) {
+                  const profile = response.data.user;
+                  setCurrentVendor({
+                    id: profile._id,
+                    email: profile.email,
+                    companyName: profile.company_name || '',
+                    status: profile.status,
+                    createdAt: new Date(),
+                  } as any);
+                } else {
+                   await getVendorProfile().then(res => {
+                     if (res.data) {
+                       setCurrentVendor({
+                         id: res.data._id,
+                         email: res.data.email,
+                         companyName: res.data.company_name || '',
+                         status: res.data.status,
+                         createdAt: new Date(),
+                       } as any);
+                     }
+                   });
+                }
+
+                await loadBackendProjects();
+                toast({ title: 'Welcome!', description: 'Logged in with Google' });
+                navigate('/dashboard');
+              }
+            }}
+            onError={() => {
+              toast({
+                variant: 'destructive',
+                title: 'Login Failed',
+                description: 'Google authentication failed',
+              });
+            }}
+            useOneTap
+            shape="rectangular"
+            width="100%"
+          />
+        </div>
 
         <div className="text-center text-sm text-muted-foreground">
           Don't have an account?{' '}

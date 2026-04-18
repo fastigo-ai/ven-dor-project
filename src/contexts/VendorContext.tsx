@@ -56,7 +56,7 @@ export interface VendorData {
   contactPersonName: string;
   phoneNumber: string;
   websiteUrl: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'draft' | 'pending' | 'approved' | 'rejected';
   id: string;
   createdAt: Date;
 }
@@ -131,6 +131,10 @@ interface VendorContextType {
   
   // Add new project to backend list (after creation)
   addBackendProject: (project: BackendProjectData) => void;
+  
+  // Registration flow state
+  isGoogleUser: boolean;
+  setIsGoogleUser: (value: boolean) => void;
 }
 
 const VendorContext = createContext<VendorContextType | undefined>(undefined);
@@ -174,6 +178,9 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
   const [selectedProjectDetails, setSelectedProjectDetails] = useState<ProjectDetailsResponse | null>(null);
   const [selectedProjectLoading, setSelectedProjectLoading] = useState(false);
   const [selectedProjectError, setSelectedProjectError] = useState<string | null>(null);
+
+  // Registration flow state
+  const [isGoogleUser, setIsGoogleUser] = useState(false);
 
   const addVendor = (vendorData: Omit<VendorData, 'id' | 'createdAt' | 'status'>) => {
     const newVendor: VendorData = {
@@ -445,6 +452,9 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
         loadProjectDetails,
         clearSelectedProject,
         addBackendProject,
+        // Registration state
+        isGoogleUser,
+        setIsGoogleUser,
       }}
     >
       {children}

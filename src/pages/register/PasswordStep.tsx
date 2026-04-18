@@ -20,13 +20,19 @@ const PasswordStep = () => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isVerified, currentEmail, setVendorPassword } = useVendor();
+  const { 
+    isVerified, 
+    currentEmail, 
+    setVendorPassword,
+    isGoogleUser 
+  } = useVendor();
 
   useEffect(() => {
-    if (!isVerified) {
+    // Both OTP verified users and Google authenticated users (in DRAFT/Company mode) can access this
+    if (!isVerified && !isGoogleUser) {
       navigate('/register');
     }
-  }, [isVerified, navigate]);
+  }, [isVerified, isGoogleUser, navigate]);
 
   const requirements = [
     { label: 'At least 8 characters', met: password.length >= 8 },
@@ -64,7 +70,8 @@ const PasswordStep = () => {
     setIsLoading(true);
     
     // Call API to set password
-    const response = await setPasswordApi(currentEmail, password);
+    // For Google users, currentEmail might be pre-filled, but backend identifies via session
+    const response = await setPasswordApi(currentEmail || undefined, password);
 
     if (response.error) {
       setError(response.error);

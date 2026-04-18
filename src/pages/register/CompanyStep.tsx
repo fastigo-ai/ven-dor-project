@@ -35,13 +35,21 @@ const CompanyStep = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { currentEmail, isVerified, addVendor } = useVendor();
+  const { 
+    currentEmail, 
+    isVerified, 
+    addVendor, 
+    isGoogleUser,
+    setCurrentVendor,
+    currentVendor
+  } = useVendor();
 
   useEffect(() => {
-    if (!isVerified) {
+    // Both OTP verified users and Google authenticated users (in DRAFT mode) can access this
+    if (!isVerified && !isGoogleUser) {
       navigate('/register');
     }
-  }, [isVerified, navigate]);
+  }, [isVerified, isGoogleUser, navigate]);
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -88,18 +96,26 @@ const CompanyStep = () => {
       return;
     }
 
-    // Also update local context for demo purposes
-    addVendor({
-      email: currentEmail,
-      ...formData,
-    });
-
-    toast({
-      title: "Registration Submitted",
-      description: "Your application is now pending approval",
-    });
-
-    navigate('/pending');
+    // Update local vendor context status to pending
+    if (currentVendor) {
+      setCurrentVendor({
+        ...currentVendor,
+        ...formData,
+        status: 'pending'
+      } as any);
+    } else {
+      // For demo or edge cases where context was lost
+      addVendor({
+        email: currentEmail,
+        ...formData,
+      });
+    }
+    
+    // Clear registration flags
+    // (Wait for navigation to complete)
+    setTimeout(() => {
+      navigate('/pending');
+    }, 100);
   };
 
   return (
