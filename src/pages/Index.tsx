@@ -43,7 +43,7 @@ const Index = () => {
             style={{ animationDelay: "0.1s" }}
           >
             Join our network of trusted vendors and reach millions of customers.
-            Register today and start selling on India's fastest-growing delivery
+            Register today and start selling on India's fastest growing delivery
             platform.
           </p>
 
