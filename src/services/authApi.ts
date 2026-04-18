@@ -1,6 +1,9 @@
 // Auth API Service - Integrates with FastAPI backend
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://door2fyvendor-gv4g4.ondigitalocean.app';
+const envUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = typeof window !== 'undefined' && (envUrl.includes('localhost') || envUrl.includes('127.0.0.1'))
+  ? `http://${window.location.hostname}:8000`
+  : envUrl;
 
 interface ApiResponse<T = unknown> {
   data?: T;
@@ -98,13 +101,8 @@ export const setPassword = async (email?: string, password?: string): Promise<Ap
     
     const data = await response.json();
     
-    // Store the tokens if returned by backend
-    if (data.access_token) {
-      setAuthToken(data.access_token);
-    }
-    if (data.refresh_token) {
-      setRefreshToken(data.refresh_token);
-    }
+    // Tokens are now handled exclusively by HttpOnly cookies
+    // We only returned them for legacy support, but we won't store them in LocalStorage anymore
     
     return { data };
   } catch (error) {
@@ -132,12 +130,7 @@ export const loginUser = async (email: string, password: string): Promise<ApiRes
     
     const data = await response.json();
     
-    if (data.access_token) {
-      setAuthToken(data.access_token);
-    }
-    if (data.refresh_token) {
-      setRefreshToken(data.refresh_token);
-    }
+    // Tokens handled by HttpOnly cookies
     
     return { data };
   } catch (error) {
@@ -165,12 +158,7 @@ export const loginWithGoogle = async (credential: string): Promise<ApiResponse<{
     
     const data = await response.json();
     
-    if (data.access_token) {
-      setAuthToken(data.access_token);
-    }
-    if (data.refresh_token) {
-      setRefreshToken(data.refresh_token);
-    }
+    // Tokens handled by HttpOnly cookies
     
     return { data };
   } catch (error) {
@@ -223,12 +211,7 @@ export const resetPassword = async (email: string, otp: string, newPassword: str
 // Refresh Session
 export const refreshSession = async (): Promise<ApiResponse<{ access_token: string }>> => {
   try {
-    const refreshToken = getRefreshToken();
-    if (!refreshToken) {
-      return { error: 'No refresh token available' };
-    }
-
-    const response = await fetch(`${API_BASE_URL}/auth/refresh?refresh_token=${encodeURIComponent(refreshToken)}`, {
+    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include'
@@ -241,9 +224,6 @@ export const refreshSession = async (): Promise<ApiResponse<{ access_token: stri
     }
     
     const data = await response.json();
-    if (data.access_token) {
-      setAuthToken(data.access_token);
-    }
     return { data };
   } catch (error) {
     return { error: 'Network error during session refresh' };
@@ -253,19 +233,19 @@ export const refreshSession = async (): Promise<ApiResponse<{ access_token: stri
 // Logout
 export const logoutUser = async (): Promise<void> => {
   try {
-    const refreshToken = getRefreshToken();
-    if (refreshToken) {
-      await fetch(`${API_BASE_URL}/auth/logout?refresh_token=${encodeURIComponent(refreshToken)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
-    }
+    // Notify backend to clear cookies and revoke session
+    await fetch(`${API_BASE_URL}/auth/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
   } catch (error) {
     console.error('Logout error:', error);
   } finally {
+    // Final local cleanup
     removeAuthToken();
     removeRefreshToken();
+    localStorage.removeItem('current_vendor');
   }
 };
 
@@ -289,7 +269,7 @@ export const getRefreshToken = (): string | null => {
   return localStorage.getItem('refresh_token');
 };
 
-// Remove tokens
+// Remove tokens (Cleanup only, JWTs are in cookies)
 export const removeAuthToken = () => {
   localStorage.removeItem('auth_token');
 };

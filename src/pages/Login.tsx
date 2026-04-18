@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import AuthLayout from '@/components/AuthLayout';
 import { useVendor } from '@/contexts/VendorContext';
 import { toast } from '@/hooks/use-toast';
-import { loginUser, setAuthToken, getVendorProfile, loginWithGoogle } from '@/services/authApi';
+import { loginUser, getVendorProfile, loginWithGoogle } from '@/services/authApi';
 import { GoogleLogin } from '@react-oauth/google';
 
 const loginSchema = z.object({
@@ -66,10 +66,7 @@ const Login = () => {
       return;
     }
 
-    // Store the auth token
-    if (response.data?.access_token) {
-      setAuthToken(response.data.access_token);
-    }
+    // Tokens are now strictly handled by HttpOnly cookies
 
     // Fetch vendor profile from backend
     const profileResponse = await getVendorProfile();
@@ -102,7 +99,7 @@ const Login = () => {
         contactPersonName: profile.contact_person_name || '',
         phoneNumber: profile.phone_number || '',
         websiteUrl: profile.website_url || '',
-        status: 'approved', // Only approved users can login
+        status: (profile.status || 'approved').toLowerCase() as any,
         createdAt: new Date(),
       });
     }
@@ -224,13 +221,12 @@ const Login = () => {
                 const response = await loginWithGoogle(credentialResponse.credential);
                 
                 // Handle the unified registration flow for Google (DRAFT status)
-                if (response.data?.user?.status === 'DRAFT' || response.data?.user?.profile_status !== 'COMPLETED') {
+                if (response.data?.user?.status === 'DRAFT') {
                   setCurrentEmail(response.data?.user?.email || '');
                   setIsVerified(true);
                   setIsGoogleUser(true);
                   
-                  // Store tokens if they were returned even in DRAFT state
-                  if (response.data?.access_token) setAuthToken(response.data.access_token);
+                  // Tokens handled by HttpOnly cookies
                   
                   toast({ 
                     title: 'Google Identity Verified', 
@@ -269,19 +265,30 @@ const Login = () => {
                     id: profile._id,
                     email: profile.email,
                     companyName: profile.company_name || '',
-                    status: profile.status,
+                    gstNumber: profile.gst_number || '',
+                    registrationNumber: profile.registration_number || '',
+                    businessAddress: profile.business_address || '',
+                    contactPersonName: profile.contact_person_name || '',
+                    phoneNumber: profile.phone_number || '',
+                    websiteUrl: profile.website_url || '',
+                    status: (profile.status || '').toLowerCase() as any,
                     createdAt: new Date(),
-                  } as any);
-                } else {
+                  });
                    await getVendorProfile().then(res => {
                      if (res.data) {
                        setCurrentVendor({
                          id: res.data._id,
                          email: res.data.email,
                          companyName: res.data.company_name || '',
-                         status: res.data.status,
+                         gstNumber: res.data.gst_number || '',
+                         registrationNumber: res.data.registration_number || '',
+                         businessAddress: res.data.business_address || '',
+                         contactPersonName: res.data.contact_person_name || '',
+                         phoneNumber: res.data.phone_number || '',
+                         websiteUrl: res.data.website_url || '',
+                         status: (res.data.status || '').toLowerCase() as any,
                          createdAt: new Date(),
-                       } as any);
+                       });
                      }
                    });
                 }

@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Logo from '@/components/Logo';
 import { toast } from '@/hooks/use-toast';
-import { adminLogin, setAdminToken } from '@/services/adminApi';
+import { adminLogin } from '@/services/adminApi';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -43,9 +43,7 @@ const AdminLogin = () => {
       return;
     }
 
-    if (response.data?.access_token) {
-      setAdminToken(response.data.access_token);
-      
+    if (!response.error) {
       toast({
         title: 'Welcome Admin!',
         description: 'Logged in successfully',

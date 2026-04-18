@@ -82,7 +82,7 @@ import {
   AdminCall,
   ProjectDetailsResponse,
   isAdminAuthenticated,
-  clearAdminToken,
+  adminLogout,
 } from '@/services/adminApi';
 import AdminFinancialsTab from '@/components/admin/AdminFinancialsTab';
 
@@ -154,8 +154,8 @@ const AdminPanel = () => {
   });
 
   // Handle logout
-  const handleLogout = () => {
-    clearAdminToken();
+  const handleLogout = async () => {
+    await adminLogout();
     navigate('/admin/login');
   };
 
