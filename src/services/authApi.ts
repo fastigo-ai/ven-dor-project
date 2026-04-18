@@ -1,7 +1,6 @@
 // Auth API Service - Integrates with FastAPI backend
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://door2fyvendor-gv4g4.ondigitalocean.app';
-// const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 interface ApiResponse<T = unknown> {
   data?: T;
@@ -79,13 +78,16 @@ export const verifyOtp = async (email: string, otp: string): Promise<ApiResponse
   }
 };
 
-// Set password after OTP verification
-export const setPassword = async (email: string, password: string): Promise<ApiResponse<{ message: string; access_token?: string }>> => {
+// Set password after OTP verification or via active session (Google)
+export const setPassword = async (email?: string, password?: string): Promise<ApiResponse<{ message: string; access_token?: string; refresh_token?: string }>> => {
   try {
+    const body: any = { password };
+    if (email) body.email = email;
+    
     const response = await fetch(`${API_BASE_URL}/auth/set-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(body),
       credentials: 'include'
     });
     
@@ -140,6 +142,39 @@ export const loginUser = async (email: string, password: string): Promise<ApiRes
     return { data };
   } catch (error) {
     return { error: 'Network error. Please try again.' };
+  }
+};
+
+// Google Login
+export const loginWithGoogle = async (credential: string): Promise<ApiResponse<{ access_token: string, refresh_token: string, user?: any }>> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential }),
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 403) {
+        return { error: 'PENDING_APPROVAL' };
+      }
+      return { error: extractErrorMessage(error.detail) || 'Google authentication failed' };
+    }
+    
+    const data = await response.json();
+    
+    if (data.access_token) {
+      setAuthToken(data.access_token);
+    }
+    if (data.refresh_token) {
+      setRefreshToken(data.refresh_token);
+    }
+    
+    return { data };
+  } catch (error) {
+    return { error: 'Network error during Google authentication' };
   }
 };
 
@@ -309,6 +344,7 @@ export interface VendorProfile {
   website_url?: string;
   status: string;
   profile_status?: string;
+  password_set?: boolean;
 }
 
 export const getVendorProfile = async (): Promise<ApiResponse<VendorProfile>> => {

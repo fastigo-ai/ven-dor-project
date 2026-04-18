@@ -60,7 +60,8 @@ const AuthLoader = ({ children }: AuthLoaderProps) => {
               phoneNumber: profile.phone_number || '',
               websiteUrl: profile.website_url || '',
               status: profile.status?.toLowerCase() === 'approved' ? 'approved' : 
-                     profile.status?.toLowerCase() === 'pending' ? 'pending' : 'rejected',
+                     profile.status?.toLowerCase() === 'pending' ? 'pending' : 
+                     profile.status?.toLowerCase() === 'draft' ? 'draft' : 'rejected',
               createdAt: new Date(),
             });
           }
@@ -91,7 +92,8 @@ const AuthLoader = ({ children }: AuthLoaderProps) => {
             phoneNumber: profile.phone_number || '',
             websiteUrl: profile.website_url || '',
             status: profile.status?.toLowerCase() === 'approved' ? 'approved' : 
-                   profile.status?.toLowerCase() === 'pending' ? 'pending' : 'rejected',
+                   profile.status?.toLowerCase() === 'pending' ? 'pending' : 
+                   profile.status?.toLowerCase() === 'draft' ? 'draft' : 'rejected',
             createdAt: new Date(),
           });
         }
@@ -123,9 +125,29 @@ const AuthLoader = ({ children }: AuthLoaderProps) => {
     if (!currentVendor && !isPublicRoute) {
       // Not logged in and trying to access a protected vendor route
       navigate('/login');
-    } else if (currentVendor && (location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/')) {
-      // Logged in vendor trying to access auth pages or home
-      navigate('/dashboard');
+    } else if (currentVendor) {
+      // Logic for logged in users in different registration states
+      const isDraft = currentVendor.status.toLowerCase() === 'draft';
+      const isPending = currentVendor.status.toLowerCase() === 'pending';
+      
+      if (isDraft) {
+        // Find which step they need to complete
+        // Accessing registration steps is allowed
+        const onRegPage = location.pathname.startsWith('/register');
+        if (!onRegPage) {
+          // If profile not done, go to company
+          // If password not set, go to password
+          // Note: In unified flow, they should go to password first
+          navigate('/register/password');
+        }
+      } else if (isPending) {
+         if (location.pathname !== '/pending') {
+           navigate('/pending');
+         }
+      } else if (isPublicRoute || location.pathname === '/') {
+        // Logged in vendor trying to access auth pages or home
+        navigate('/dashboard');
+      }
     }
   }, [isLoading, currentVendor, isPublicRoute, isAdminRoute, navigate, location.pathname]);
 

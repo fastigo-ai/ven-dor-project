@@ -20,11 +20,16 @@ import VendorProjects from "./pages/VendorProjects";
 import ProjectDetails from "./pages/ProjectDetails";
 import NotFound from "./pages/NotFound";
 
+import { GoogleOAuthProvider } from '@react-oauth/google';
+
 const queryClient = new QueryClient();
 
 const App = () => {
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
   return (
-    <QueryClientProvider client={queryClient}>
+    <GoogleOAuthProvider clientId={googleClientId}>
+      <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <VendorProvider>
           <BrowserRouter>
@@ -52,6 +57,7 @@ const App = () => {
         </VendorProvider>
       </TooltipProvider>
     </QueryClientProvider>
+    </GoogleOAuthProvider>
   );
 };
 
