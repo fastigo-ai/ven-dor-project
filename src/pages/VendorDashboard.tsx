@@ -48,9 +48,9 @@ import { logoutUser } from '@/services/authApi';
 
 const VendorDashboard = () => {
   const navigate = useNavigate();
-  const { 
-    currentVendor, 
-    setCurrentVendor, 
+  const {
+    currentVendor,
+    setCurrentVendor,
     rateCards,
     loadRateCards,
     backendProjects,
@@ -67,7 +67,7 @@ const VendorDashboard = () => {
     if (currentVendor) {
       if (!backendProjectsLoading) loadBackendProjects();
       loadRateCards();
-      
+
       // Load aggregate stats
       const loadStats = async () => {
         setStatsLoading(true);
@@ -108,10 +108,10 @@ const VendorDashboard = () => {
 
   // Calculate stats from backend projects
   const totalProjects = backendProjects.length;
-  const activeProjects = backendProjects.filter(p => 
+  const activeProjects = backendProjects.filter(p =>
     p.status.toUpperCase() === 'ACTIVE' || p.status.toUpperCase() === 'APPROVED'
   ).length;
-  
+
   // Sum total calls and total cost from all projects with safety checks
   const totalCalls = backendProjects.reduce((sum, p) => sum + (p.totalCalls ?? 0), 0);
   const totalAmount = backendProjects.reduce((sum, p) => sum + (p.totalCost ?? 0), 0);
@@ -135,7 +135,7 @@ const VendorDashboard = () => {
       bgColor: 'bg-success/10',
     },
     {
-      title: 'Total Revenue',
+      title: 'Total Cost',
       value: (dashboardStats?.total_revenue ?? 0) > 0 ? `₹${((dashboardStats?.total_revenue ?? 0) / 1000).toFixed(1)}K` : '₹0',
       change: 'Completed projects',
       icon: IndianRupee,
@@ -335,8 +335,8 @@ const VendorDashboard = () => {
                   <div className="flex justify-center gap-4 mt-2">
                     {pieChartData.map((item, index) => (
                       <div key={index} className="flex items-center gap-2">
-                        <div 
-                          className="w-3 h-3 rounded-full" 
+                        <div
+                          className="w-3 h-3 rounded-full"
                           style={{ backgroundColor: item.fill }}
                         />
                         <span className="text-xs text-muted-foreground">
@@ -398,8 +398,8 @@ const VendorDashboard = () => {
               />
               {backendProjects.length > 3 && (
                 <div className="flex justify-center pt-2">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={() => navigate('/projects')}
                     className="gap-2 group border-primary/20 hover:border-primary/50 text-primary font-medium px-8 h-11"
                   >
@@ -422,8 +422,8 @@ const VendorDashboard = () => {
       </main>
 
       {/* Dialogs */}
-      <CreateProjectWizard 
-        open={createProjectOpen} 
+      <CreateProjectWizard
+        open={createProjectOpen}
         onOpenChange={(open) => {
           setCreateProjectOpen(open);
           if (!open) loadBackendProjects(); // Refresh when wizard closes

@@ -32,17 +32,17 @@ import { cn } from "@/lib/utils";
 const formatError = (error: any): string => {
   if (!error) return "An unknown error occurred";
   if (typeof error === 'string') return error;
-  
+
   if (Array.isArray(error)) {
     return error.map(err => err.msg || JSON.stringify(err)).join(', ');
   }
-  
+
   if (typeof error === 'object') {
     if (error.detail) return formatError(error.detail);
     if (error.message) return error.message;
     return JSON.stringify(error);
   }
-  
+
   return String(error);
 };
 
@@ -516,10 +516,10 @@ const CreateProjectWizard = ({
 
   const getApplicableRate = (): RateCard | undefined => {
     if (!projectData) return undefined;
-    
+
     // VendorContext standardized support_type, so we search directly
     const targetType = projectData.supportType.toLowerCase();
-    
+
     // Find the prioritized rate (Vendor-specific if exists, else Global Default)
     // The fetchMyRateCards call already returns prioritized results, so we just find by type.
     return rateCards.find(
@@ -531,15 +531,15 @@ const CreateProjectWizard = ({
 
   const calculateLocationCost = (location: ParsedCall): number => {
     if (!applicableRate) return location.assetsCount * 100; // Fallback
-    
+
     const baseCost = applicableRate.base_price;
     const assetsCost = location.assetsCount * applicableRate.per_asset_price;
-    
+
     // Use multiplier based on priority
     let multiplier = 1.0;
     if (slaPriority === "HIGH") multiplier = applicableRate.sla_multipliers?.urgent || 1.5;
     else if (slaPriority === "MEDIUM") multiplier = applicableRate.sla_multipliers?.express || 1.25;
-    
+
     return (baseCost + assetsCost) * multiplier;
   };
 
@@ -845,7 +845,7 @@ const CreateProjectWizard = ({
                     className={cn(
                       "cursor-pointer transition-all hover:border-primary/50",
                       uploadType === "bulk" &&
-                        "border-primary ring-2 ring-primary/20",
+                      "border-primary ring-2 ring-primary/20",
                     )}
                     onClick={() => setUploadType("bulk")}
                   >
@@ -861,7 +861,7 @@ const CreateProjectWizard = ({
                     className={cn(
                       "cursor-pointer transition-all hover:border-primary/50",
                       uploadType === "single" &&
-                        "border-primary ring-2 ring-primary/20",
+                      "border-primary ring-2 ring-primary/20",
                     )}
                     onClick={() => setUploadType("single")}
                   >
@@ -1057,8 +1057,8 @@ const CreateProjectWizard = ({
 
                 <div className={cn(
                   "border rounded-lg p-4 text-center transition-colors",
-                  validationSummary.isProcessing 
-                    ? "bg-blue-50 border-blue-200 animate-pulse" 
+                  validationSummary.isProcessing
+                    ? "bg-blue-50 border-blue-200 animate-pulse"
                     : "bg-muted/30 border-muted"
                 )}>
                   <div className="flex justify-center mb-1">
@@ -1194,7 +1194,7 @@ const CreateProjectWizard = ({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <div className="text-center p-3 sm:p-4 bg-background rounded-lg">
                           <p className="text-2xl sm:text-3xl font-bold text-primary">
-                            {serviceableLocations.length}
+                            {validationSummary.serviceable || serviceableLocations.length}
                           </p>
                           <p className="text-xs sm:text-sm text-muted-foreground">
                             Serviceable Locations
@@ -1303,7 +1303,7 @@ const CreateProjectWizard = ({
                         Serviceable Locations
                       </p>
                       <p className="font-medium text-green-600">
-                        {serviceableLocations.length}
+                        {validationSummary.serviceable || serviceableLocations.length}
                       </p>
                     </div>
                     <div>
@@ -1325,7 +1325,7 @@ const CreateProjectWizard = ({
                   className={cn(
                     "cursor-pointer transition-all hover:border-green-500/50",
                     projectStatus === "approved" &&
-                      "border-green-500 ring-2 ring-green-500/20",
+                    "border-green-500 ring-2 ring-green-500/20",
                   )}
                   onClick={() => setProjectStatus("approved")}
                 >
@@ -1345,7 +1345,7 @@ const CreateProjectWizard = ({
                   className={cn(
                     "cursor-pointer transition-all hover:border-amber-500/50",
                     projectStatus === "on-hold" &&
-                      "border-amber-500 ring-2 ring-amber-500/20",
+                    "border-amber-500 ring-2 ring-amber-500/20",
                   )}
                   onClick={() => setProjectStatus("on-hold")}
                 >
@@ -1525,7 +1525,7 @@ const CreateProjectWizard = ({
             <AlertDialogHeader>
               <AlertDialogTitle>Confirm Project Activation</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to activate this project? This will start the 
+                Are you sure you want to activate this project? This will start the
                 matching process to assign engineers to your calls.
                 <div className="mt-3 p-3 bg-muted rounded-lg text-sm">
                   <div className="flex justify-between mb-1">

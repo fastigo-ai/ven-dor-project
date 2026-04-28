@@ -22,12 +22,12 @@ import {
   listVendors,
 } from '@/services/adminApi';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  IndianRupee, 
-  Clock, 
-  CheckCircle, 
-  Settings2, 
-  Loader2, 
+import {
+  IndianRupee,
+  Clock,
+  CheckCircle,
+  Settings2,
+  Loader2,
   AlertCircle,
   RefreshCw,
   Wallet,
@@ -60,7 +60,7 @@ const AdminFinancialsTab = () => {
       if (ovResult.data) setOverview(ovResult.data);
       if (pendingResult.data) setPendingPayouts(pendingResult.data);
       if (vendorsResult.data) setVendors(vendorsResult.data);
-      
+
       if (ovResult.data?.config) {
         setNewMaturationDays(ovResult.data.config.maturation_days);
       }
@@ -94,15 +94,15 @@ const AdminFinancialsTab = () => {
 
   const handleProcessPayouts = async () => {
     if (selectedPayouts.length === 0) return;
-    
+
     setActionLoading(true);
     const result = await markPayoutsAsPaid(selectedPayouts);
     if (result.error) {
       toast({ title: 'Error', description: result.error, variant: 'destructive' });
     } else {
-      toast({ 
-        title: 'Payouts Processed', 
-        description: `Successfully marked ${selectedPayouts.length} payouts as PAID.` 
+      toast({
+        title: 'Payouts Processed',
+        description: `Successfully marked ${selectedPayouts.length} payouts as PAID.`
       });
       setSelectedPayouts([]);
       fetchData();
@@ -111,7 +111,7 @@ const AdminFinancialsTab = () => {
   };
 
   const toggleSelectPayout = (id: string) => {
-    setSelectedPayouts(prev => 
+    setSelectedPayouts(prev =>
       prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
     );
   };
@@ -203,11 +203,11 @@ const AdminFinancialsTab = () => {
               </h2>
               <p className="text-sm text-muted-foreground">Approve and process payments for matured jobs.</p>
             </div>
-            
+
             <div className="flex items-center gap-3">
               {selectedPayouts.length > 0 && (
-                <Button 
-                  onClick={handleProcessPayouts} 
+                <Button
+                  onClick={handleProcessPayouts}
                   disabled={actionLoading}
                   className="bg-primary hover:bg-primary/90 shadow-glow animate-in slide-in-from-right"
                 >
@@ -226,7 +226,7 @@ const AdminFinancialsTab = () => {
               <TableHeader className="bg-muted/50">
                 <TableRow>
                   <TableHead className="w-[50px]">
-                    <Checkbox 
+                    <Checkbox
                       checked={selectedPayouts.length === pendingPayouts.length && pendingPayouts.length > 0}
                       onCheckedChange={toggleSelectAll}
                     />
@@ -251,7 +251,7 @@ const AdminFinancialsTab = () => {
                   pendingPayouts.map((payout) => (
                     <TableRow key={payout._id} className="hover:bg-muted/30 transition-colors">
                       <TableCell>
-                        <Checkbox 
+                        <Checkbox
                           checked={selectedPayouts.includes(payout._id)}
                           onCheckedChange={() => toggleSelectPayout(payout._id)}
                         />
@@ -297,9 +297,9 @@ const AdminFinancialsTab = () => {
                 <div className="flex items-center gap-3">
                   {editingPolicy ? (
                     <>
-                      <Input 
-                        type="number" 
-                        value={newMaturationDays} 
+                      <Input
+                        type="number"
+                        value={newMaturationDays}
                         onChange={(e) => setNewMaturationDays(parseInt(e.target.value))}
                         className="w-20"
                       />
