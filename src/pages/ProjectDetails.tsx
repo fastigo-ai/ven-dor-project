@@ -286,7 +286,7 @@ const ProjectDetails = () => {
   };
 
   const formatValidationResults = (apiData: any) => {
-    const serviceable = (apiData["Service available locations"] || []).map((s: any) => ({ ...s, serviceable: true }));
+    const serviceable = (apiData["Service available locations"] || (apiData as any).serviceable_locations || (apiData as any).service_available_locations || []).map((s: any) => ({ ...s, serviceable: true }));
     const nonServiceable = (apiData.non_serviceable_locations || []).map((ns: any) => ({ ...ns, serviceable: false }));
     setLocationAnalysis([...serviceable, ...nonServiceable]);
   };

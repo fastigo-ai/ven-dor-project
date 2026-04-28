@@ -441,8 +441,8 @@ const CreateProjectWizard = ({
           console.log("Validation complete:", apiData);
 
           const serviceableFromApi = (
-            apiData["Service available locations"] || []
-          ).map((s) => ({
+            apiData["Service available locations"] || (apiData as any).serviceable_locations || (apiData as any).service_available_locations || []
+          ).map((s: any) => ({
             stateName: s.state_name || "",
             branchName: s.branch_name || "",
             branchCategory: "",

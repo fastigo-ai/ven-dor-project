@@ -238,7 +238,8 @@ export interface AddressValidationResponse {
     processing_count?: number;
   };
   non_serviceable_locations: NonServiceableLocation[];
-  'Service available locations': ServiceableLocation[];
+  'Service available locations'?: ServiceableLocation[];
+  serviceable_locations?: ServiceableLocation[];
 }
 
 // Validate project addresses - Backend returns raw AddressValidationResponse (not wrapped)
