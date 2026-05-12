@@ -16,7 +16,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { useVendor, CallData } from '@/contexts/VendorContext';
+import { useVendor } from '@/contexts/VendorContext';
+import { CallData } from '@/types/vendor';
 import { toast } from '@/hooks/use-toast';
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';

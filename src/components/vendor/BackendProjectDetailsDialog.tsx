@@ -20,7 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { BackendProjectData } from '@/contexts/VendorContext';
+import { BackendProjectData } from '@/types/vendor';
 import { ProjectDetailsResponse, ProjectCallRow } from '@/services/projectApi';
 import { pauseProject, resumeProject, holdCall, resumeCall } from '@/services/projectApi';
 import { toast } from '@/hooks/use-toast';

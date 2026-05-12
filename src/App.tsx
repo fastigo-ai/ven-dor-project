@@ -21,6 +21,7 @@ import ProjectDetails from "./pages/ProjectDetails";
 import NotFound from "./pages/NotFound";
 
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import CookieConsent from "./components/CookieConsent";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => {
             <AuthLoader>
               <Toaster />
               <Sonner />
+              <CookieConsent />
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/login" element={<Login />} />

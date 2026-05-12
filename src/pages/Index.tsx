@@ -25,13 +25,13 @@ const Index = () => {
             Vendor Onboarding Portal
           </div>
 
-          <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground mb-6 animate-slide-up leading-tight">
+          <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl font-black text-foreground mb-6 animate-slide-up leading-[1.1] tracking-tighter">
             Partner with
             <span className="inline-flex items-center gap-2 text-primary">
               <img
                 src={image}
                 alt="Door2Fy Logo"
-                className="h-[1em] w-auto align-bottom pt-3"
+                className="h-[0.9em] w-auto align-bottom pt-3"
               />
             </span>
             <br />

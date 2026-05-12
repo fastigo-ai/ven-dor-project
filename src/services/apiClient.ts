@@ -1,6 +1,6 @@
 import { refreshSession, removeAuthToken, removeRefreshToken } from './authApi';
 
-const envUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+const envUrl = import.meta.env.VITE_API_URL || 'https://door2fyvendor-gv4g4.ondigitalocean.app';
 const API_BASE_URL = typeof window !== 'undefined' && (envUrl.includes('localhost') || envUrl.includes('127.0.0.1'))
   ? `http://${window.location.hostname}:8000`
   : envUrl;

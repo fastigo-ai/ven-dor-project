@@ -20,7 +20,8 @@ import {
 } from '@/components/ui/select';
 import Logo from '@/components/Logo';
 import StatusBadge from '@/components/StatusBadge';
-import { useVendor, ProjectData } from '@/contexts/VendorContext';
+import { useVendor } from '@/contexts/VendorContext';
+import { ProjectData } from '@/types/vendor';
 import ProjectDetailsDialog from '@/components/vendor/ProjectDetailsDialog';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -56,7 +57,11 @@ import {
   ArrowLeft,
   Pause,
   Play,
+  Bell,
+  Check,
 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -90,42 +95,42 @@ const AdminPanel = () => {
   const navigate = useNavigate();
   const { calls, projects } = useVendor();
   const { toast } = useToast();
-  
+
   // Check authentication on mount
   useEffect(() => {
     if (!isAdminAuthenticated()) {
       navigate('/admin/login');
     }
   }, [navigate]);
-  
+
   // API data state
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [rateCards, setRateCards] = useState<RateCard[]>([]);
   const [adminProjects, setAdminProjects] = useState<AdminProject[]>([]);
   const [adminCalls, setAdminCalls] = useState<AdminCall[]>([]);
-  
+
   // Loading states
   const [vendorsLoading, setVendorsLoading] = useState(true);
   const [rateCardsLoading, setRateCardsLoading] = useState(true);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [callsLoading, setCallsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  
+
   // Error states
   const [vendorsError, setVendorsError] = useState<string | null>(null);
   const [rateCardsError, setRateCardsError] = useState<string | null>(null);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [callsError, setCallsError] = useState<string | null>(null);
-  
+
   // UI state
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'PENDING' | 'APPROVED' | 'REJECTED'>('all');
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [editingRate, setEditingRate] = useState<RateCard | null>(null);
-  const [rateForm, setRateForm] = useState({ 
-    base_price: 0, 
-    per_asset_price: 0, 
-    sla_minutes: 240, 
+  const [rateForm, setRateForm] = useState({
+    base_price: 0,
+    per_asset_price: 0,
+    sla_minutes: 240,
     sla_multipliers: { urgent: 1.5, express: 1.25 } as Record<string, number>,
     vendor_id: null as string | null
   });
@@ -136,18 +141,27 @@ const AdminPanel = () => {
   const [selectedProjectForCalls, setSelectedProjectForCalls] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('vendors');
   const [selectedProjectName, setSelectedProjectName] = useState<string | null>(null);
-  
+
   // Hold call dialog state
   const [showHoldCallDialog, setShowHoldCallDialog] = useState(false);
   const [holdCallId, setHoldCallId] = useState<string | null>(null);
   const [holdReason, setHoldReason] = useState('');
-  
+
+  // Vendor summary state
+  const [vendorSummary, setVendorSummary] = useState<any | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
+  // Admin notifications state
+  const [adminNotifications, setAdminNotifications] = useState<any[]>([]);
+  const [unreadAdminCount, setUnreadAdminCount] = useState(0);
+  const [notifsLoading, setNotifsLoading] = useState(false);
+
   // Create Rate Card state
   const [showCreateRate, setShowCreateRate] = useState(false);
-  const [createRateForm, setCreateRateForm] = useState<RateCardCreate>({ 
-    support_type: '', 
-    base_price: 0, 
-    per_asset_price: 0, 
+  const [createRateForm, setCreateRateForm] = useState<RateCardCreate>({
+    support_type: '',
+    base_price: 0,
+    per_asset_price: 0,
     sla_minutes: 240,
     sla_multipliers: { urgent: 1.5, express: 1.25 },
     vendor_id: null
@@ -159,21 +173,59 @@ const AdminPanel = () => {
     navigate('/admin/login');
   };
 
+  const fetchAdminAlerts = async () => {
+    const { fetchAdminNotifications, fetchAdminUnreadCount } = await import('@/services/adminApi');
+    const [notifs, count] = await Promise.all([
+      fetchAdminNotifications(),
+      fetchAdminUnreadCount()
+    ]);
+    
+    if (notifs.data) setAdminNotifications(notifs.data);
+    if (count.data) setUnreadAdminCount(count.data.unread_count);
+  };
+
+  const handleMarkNotifRead = async (id: string) => {
+    const { markAdminNotificationRead } = await import('@/services/adminApi');
+    await markAdminNotificationRead(id);
+    fetchAdminAlerts();
+  };
+
+  useEffect(() => {
+    fetchAdminAlerts();
+    const interval = setInterval(fetchAdminAlerts, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Handle vendor selection and fetch stats
+  const handleVendorSelect = async (vendor: Vendor) => {
+    setSelectedVendor(vendor);
+    setSummaryLoading(true);
+    setVendorSummary(null);
+
+    const { getVendorFinancialSummary } = await import('@/services/adminApi');
+    const result = await getVendorFinancialSummary(vendor._id);
+    
+    if (result.data) {
+      setVendorSummary(result.data);
+    }
+    setSummaryLoading(false);
+  };
+
   // Fetch vendors from API
   const fetchVendors = async () => {
     setVendorsLoading(true);
     setVendorsError(null);
-    
+
     const statusParam = statusFilter === 'all' ? undefined : statusFilter;
     const result = await listVendors(statusParam);
-    
+
     if (result.error) {
       setVendorsError(result.error);
       toast({ title: 'Error', description: result.error, variant: 'destructive' });
     } else if (result.data) {
       setVendors(result.data);
     }
-    
+
     setVendorsLoading(false);
   };
 
@@ -181,16 +233,16 @@ const AdminPanel = () => {
   const fetchRateCards = async () => {
     setRateCardsLoading(true);
     setRateCardsError(null);
-    
+
     const result = await listRateCards();
-    
+
     if (result.error) {
       setRateCardsError(result.error);
       toast({ title: 'Error', description: result.error, variant: 'destructive' });
     } else if (result.data) {
       setRateCards(result.data);
     }
-    
+
     setRateCardsLoading(false);
   };
 
@@ -199,16 +251,16 @@ const AdminPanel = () => {
     setProjectsLoading(true);
     setProjectsError(null);
     setSelectedVendorForProjects(vendorId);
-    
+
     const result = await listProjectsByVendor(vendorId);
-    
+
     if (result.error) {
       setProjectsError(result.error);
       toast({ title: 'Error', description: result.error, variant: 'destructive' });
     } else if (result.data) {
       setAdminProjects(result.data);
     }
-    
+
     setProjectsLoading(false);
   };
 
@@ -218,9 +270,9 @@ const AdminPanel = () => {
     setCallsError(null);
     setSelectedProjectForCalls(projectId);
     setSelectedProjectName(projectName);
-    
+
     const result = await getProjectDetails(projectId);
-    
+
     if (result.error) {
       setCallsError(result.error);
       toast({ title: 'Error', description: result.error, variant: 'destructive' });
@@ -229,10 +281,10 @@ const AdminPanel = () => {
       // Switch to All Calls tab after loading
       setActiveTab('calls');
     }
-    
+
     setCallsLoading(false);
   };
-  
+
   // Handle back from calls to projects
   const handleBackToProjects = () => {
     setActiveTab('projects');
@@ -248,17 +300,17 @@ const AdminPanel = () => {
   const handleProjectPauseResume = async (projectId: string, currentStatus: string) => {
     setActionLoading(true);
     const isPaused = isHoldStatus(currentStatus);
-    
-    const result = isPaused 
+
+    const result = isPaused
       ? await resumeProject(projectId)
       : await pauseProject(projectId);
-    
+
     if (result.error) {
       toast({ title: 'Error', description: result.error, variant: 'destructive' });
     } else {
-      toast({ 
-        title: isPaused ? 'Project Resumed' : 'Project Paused', 
-        description: result.data?.message 
+      toast({
+        title: isPaused ? 'Project Resumed' : 'Project Paused',
+        description: result.data?.message
       });
       // Refresh project list
       if (selectedVendorForProjects) {
@@ -281,10 +333,10 @@ const AdminPanel = () => {
       toast({ title: 'Error', description: 'Please provide a reason for holding the call', variant: 'destructive' });
       return;
     }
-    
+
     setActionLoading(true);
     const result = await holdCall(holdCallId, holdReason.trim());
-    
+
     if (result.error) {
       toast({ title: 'Error', description: result.error, variant: 'destructive' });
     } else {
@@ -304,7 +356,7 @@ const AdminPanel = () => {
   const handleResumeCall = async (callId: string) => {
     setActionLoading(true);
     const result = await resumeCall(callId);
-    
+
     if (result.error) {
       toast({ title: 'Error', description: result.error, variant: 'destructive' });
     } else {
@@ -336,9 +388,9 @@ const AdminPanel = () => {
 
   const handleRateEdit = (rate: RateCard) => {
     setEditingRate(rate);
-    setRateForm({ 
-      base_price: rate.base_price, 
-      per_asset_price: rate.per_asset_price, 
+    setRateForm({
+      base_price: rate.base_price,
+      per_asset_price: rate.per_asset_price,
       sla_minutes: rate.sla_minutes,
       sla_multipliers: rate.sla_multipliers || { urgent: 1.5, express: 1.25 },
       vendor_id: rate.vendor_id || null
@@ -347,25 +399,25 @@ const AdminPanel = () => {
 
   const handleRateSave = async () => {
     if (!editingRate) return;
-    
+
     setActionLoading(true);
     const result = await updateRateCardApi(editingRate.support_type, rateForm);
-    
+
     if (result.error) {
       toast({ title: 'Error', description: result.error, variant: 'destructive' });
     } else {
-      const scopeText = rateForm.vendor_id 
-        ? `custom rate for ${vendors.find(v => v._id === rateForm.vendor_id)?.company_name}` 
+      const scopeText = rateForm.vendor_id
+        ? `custom rate for ${vendors.find(v => v._id === rateForm.vendor_id)?.company_name}`
         : 'global rates';
-        
-      toast({ 
-        title: 'Rate Updated', 
-        description: `${editingRate.support_type} ${scopeText} have been updated.` 
+
+      toast({
+        title: 'Rate Updated',
+        description: `${editingRate.support_type} ${scopeText} have been updated.`
       });
       setEditingRate(null);
       fetchRateCards(); // Refresh rate cards
     }
-    
+
     setActionLoading(false);
   };
 
@@ -375,10 +427,10 @@ const AdminPanel = () => {
       toast({ title: 'Error', description: 'Support type is required', variant: 'destructive' });
       return;
     }
-    
+
     setActionLoading(true);
     const result = await addRateCardApi(createRateForm);
-    
+
     if (result.error) {
       toast({ title: 'Error', description: result.error, variant: 'destructive' });
     } else {
@@ -387,7 +439,7 @@ const AdminPanel = () => {
       setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 }, vendor_id: null });
       fetchRateCards(); // Refresh rate cards
     }
-    
+
     setActionLoading(false);
   };
 
@@ -409,7 +461,7 @@ const AdminPanel = () => {
   const handleApproveVendor = async (vendorId: string) => {
     setActionLoading(true);
     const result = await approveVendor(vendorId);
-    
+
     if (result.error) {
       toast({ title: 'Error', description: result.error, variant: 'destructive' });
     } else {
@@ -417,19 +469,19 @@ const AdminPanel = () => {
       setSelectedVendor(null);
       fetchVendors(); // Refresh vendors list
     }
-    
+
     setActionLoading(false);
   };
 
   const handleRejectVendor = async (vendorId: string, reason?: string) => {
     setActionLoading(true);
     const result = await rejectVendor(vendorId, reason);
-    
+
     if (result.error) {
       toast({ title: 'Error', description: result.error, variant: 'destructive' });
     } else {
-      toast({ 
-        title: 'Vendor Rejected', 
+      toast({
+        title: 'Vendor Rejected',
         description: reason ? `Rejected: ${reason}` : 'The vendor has been rejected.',
       });
       setSelectedVendor(null);
@@ -437,14 +489,14 @@ const AdminPanel = () => {
       setShowRejectConfirm(false);
       fetchVendors(); // Refresh vendors list
     }
-    
+
     setActionLoading(false);
   };
 
   const handleBlockVendor = async (vendorId: string) => {
     setActionLoading(true);
     const result = await blockVendor(vendorId);
-    
+
     if (result.error) {
       toast({ title: 'Error', description: result.error, variant: 'destructive' });
     } else {
@@ -456,7 +508,7 @@ const AdminPanel = () => {
       setSelectedVendor(null);
       fetchVendors(); // Refresh vendors list
     }
-    
+
     setActionLoading(false);
   };
 
@@ -530,15 +582,86 @@ const AdminPanel = () => {
               Admin Panel
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Link to="/">
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" className="hidden sm:flex">
                 Exit Admin
               </Button>
             </Link>
-            <Button variant="ghost" size="sm" onClick={handleLogout}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
+
+            {/* Notification Bell */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-full bg-muted/50">
+                  <Bell className="h-5 w-5 text-muted-foreground" />
+                  {unreadAdminCount > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-black text-primary-foreground animate-pulse">
+                      {unreadAdminCount}
+                    </span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0 mr-4 mt-2 border-border/50 shadow-2xl backdrop-blur-xl bg-background/95" align="end">
+                <div className="p-4 border-b border-border/50 flex items-center justify-between">
+                  <h3 className="font-black text-xs uppercase tracking-widest">Notifications</h3>
+                  <div className="flex items-center gap-2">
+                    {unreadAdminCount > 0 && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-6 px-2 text-[9px] font-black uppercase tracking-tighter hover:bg-primary/10 hover:text-primary"
+                        onClick={async () => {
+                          const { markAllAdminNotificationsRead } = await import('@/services/adminApi');
+                          await markAllAdminNotificationsRead();
+                          fetchAdminAlerts();
+                        }}
+                      >
+                        Mark all as read
+                      </Button>
+                    )}
+                    <Badge variant="secondary" className="text-[10px] font-black">{unreadAdminCount} New</Badge>
+                  </div>
+                </div>
+                <ScrollArea className="h-[400px]">
+                  {adminNotifications.length === 0 ? (
+                    <div className="p-8 text-center text-muted-foreground">
+                      <Bell className="h-8 w-8 mx-auto opacity-20 mb-2" />
+                      <p className="text-[10px] font-bold uppercase tracking-widest">No notifications yet</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col">
+                      {adminNotifications.map((notif) => (
+                        <div 
+                          key={notif._id} 
+                          className={cn(
+                            "p-4 border-b border-border/40 hover:bg-muted/50 transition-colors cursor-pointer relative group",
+                            !notif.is_read && "bg-primary/5"
+                          )}
+                          onClick={() => !notif.is_read && handleMarkNotifRead(notif._id)}
+                        >
+                          <div className="flex justify-between items-start gap-2 mb-1">
+                            <h4 className="font-black text-[11px] uppercase tracking-tighter text-foreground leading-none">{notif.title}</h4>
+                            <span className="text-[9px] font-bold text-muted-foreground whitespace-nowrap">
+                              {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground leading-tight font-medium">{notif.message}</p>
+                          {!notif.is_read && (
+                            <div className="absolute right-4 bottom-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Check className="h-3 w-3 text-primary" />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </PopoverContent>
+            </Popover>
+
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 font-bold text-xs uppercase tracking-tighter">
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Logout</span>
             </Button>
           </div>
         </div>
@@ -580,7 +703,7 @@ const AdminPanel = () => {
                 {vendorsLoading ? (
                   <Skeleton className="h-8 w-12 mb-1" />
                 ) : (
-                  <p className="text-2xl font-display font-bold text-foreground">{stats.pending}</p>
+                  <p className="text-3xl font-black tracking-tighter text-foreground">{stats.pending}</p>
                 )}
                 <p className="text-sm text-muted-foreground">Pending</p>
               </div>
@@ -595,7 +718,7 @@ const AdminPanel = () => {
                 {vendorsLoading ? (
                   <Skeleton className="h-8 w-12 mb-1" />
                 ) : (
-                  <p className="text-2xl font-display font-bold text-foreground">{stats.approved}</p>
+                  <p className="text-3xl font-black tracking-tighter text-foreground">{stats.approved}</p>
                 )}
                 <p className="text-sm text-muted-foreground">Approved</p>
               </div>
@@ -610,7 +733,7 @@ const AdminPanel = () => {
                 {vendorsLoading ? (
                   <Skeleton className="h-8 w-12 mb-1" />
                 ) : (
-                  <p className="text-2xl font-display font-bold text-foreground">{stats.rejected}</p>
+                  <p className="text-3xl font-black tracking-tighter text-foreground">{stats.rejected}</p>
                 )}
                 <p className="text-sm text-muted-foreground">Rejected</p>
               </div>
@@ -676,7 +799,7 @@ const AdminPanel = () => {
                   <div
                     key={vendor._id}
                     className="bg-card rounded-xl p-5 shadow-card border border-border hover:border-primary/30 transition-colors cursor-pointer"
-                    onClick={() => setSelectedVendor(vendor)}
+                    onClick={() => handleVendorSelect(vendor)}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div className="flex items-start gap-4">
@@ -718,7 +841,7 @@ const AdminPanel = () => {
                 ))}
               </div>
             </div>
-            
+
             {projectsError ? (
               <div className="text-center py-12 bg-card rounded-xl border border-destructive/30">
                 <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
@@ -799,8 +922,8 @@ const AdminPanel = () => {
                         <TableCell>{project.created_at ? new Date(project.created_at).toLocaleDateString() : 'N/A'}</TableCell>
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-2">
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               variant="outline"
                               onClick={() => fetchProjectDetails(project.project_id, project.project_name)}
                             >
@@ -808,8 +931,8 @@ const AdminPanel = () => {
                               View Calls
                             </Button>
                             {project.status !== 'completed' && (
-                              <Button 
-                                size="sm" 
+                              <Button
+                                size="sm"
                                 variant={isHoldStatus(project.status) ? 'default' : 'outline'}
                                 onClick={() => handleProjectPauseResume(project.project_id, project.status)}
                                 disabled={actionLoading}
@@ -847,8 +970,8 @@ const AdminPanel = () => {
                     {selectedProjectName || adminProjects.find(p => p.project_id === selectedProjectForCalls)?.project_name || selectedProjectForCalls}
                   </Badge>
                 </div>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={handleBackToProjects}
                   className="gap-2"
@@ -858,7 +981,7 @@ const AdminPanel = () => {
                 </Button>
               </div>
             )}
-            
+
             {callsError ? (
               <div className="text-center py-12 bg-card rounded-xl border border-destructive/30">
                 <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
@@ -952,8 +1075,8 @@ const AdminPanel = () => {
                         <TableCell className="text-center">
                           {call.status?.toLowerCase() !== 'completed' && call.status?.toLowerCase() !== 'cancelled' && (
                             isHoldStatus(call.status) ? (
-                              <Button 
-                                size="sm" 
+                              <Button
+                                size="sm"
                                 variant="default"
                                 onClick={() => handleResumeCall(call.call_id)}
                                 disabled={actionLoading}
@@ -963,8 +1086,8 @@ const AdminPanel = () => {
                                 Resume
                               </Button>
                             ) : (
-                              <Button 
-                                size="sm" 
+                              <Button
+                                size="sm"
                                 variant="outline"
                                 onClick={() => openHoldCallDialog(call.call_id)}
                                 disabled={actionLoading}
@@ -1077,57 +1200,57 @@ const AdminPanel = () => {
           <div className="max-h-[65vh] overflow-y-auto pr-2 py-2 -mr-2">
             <div className="space-y-4">
               <div className="space-y-2">
-              <Label>Target Scope (Vendor)</Label>
-              <Select 
-                value={rateForm.vendor_id || "global"} 
-                onValueChange={(value) => setRateForm({ ...rateForm, vendor_id: value === "global" ? null : value })}
-              >
-                <SelectTrigger className="bg-background">
-                  <SelectValue placeholder="Select target scope" />
-                </SelectTrigger>
-                <SelectContent className="bg-background z-50">
-                  <SelectItem value="global">Global Default (All Vendors)</SelectItem>
-                  {vendors.filter(v => v.status === 'APPROVED').map(vendor => (
-                    <SelectItem key={vendor._id} value={vendor._id}>
-                      {vendor.company_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Base Price (₹)</Label>
-              <Input type="number" value={rateForm.base_price} onChange={(e) => setRateForm({ ...rateForm, base_price: Number(e.target.value) })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Per Asset Price (₹)</Label>
-              <Input type="number" value={rateForm.per_asset_price} onChange={(e) => setRateForm({ ...rateForm, per_asset_price: Number(e.target.value) })} />
-            </div>
-            <div className="space-y-2">
-              <Label>SLA Minutes</Label>
-              <Input type="number" value={rateForm.sla_minutes} onChange={(e) => setRateForm({ ...rateForm, sla_minutes: Number(e.target.value) })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Urgent Multiplier</Label>
-              <Input type="number" step="0.1" value={rateForm.sla_multipliers.urgent || 1.5} onChange={(e) => setRateForm({ ...rateForm, sla_multipliers: { ...rateForm.sla_multipliers, urgent: Number(e.target.value) } })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Express Multiplier</Label>
-              <Input type="number" step="0.1" value={rateForm.sla_multipliers.express || 1.25} onChange={(e) => setRateForm({ ...rateForm, sla_multipliers: { ...rateForm.sla_multipliers, express: Number(e.target.value) } })} />
-            </div>
-            <div className="flex gap-3 pt-4">
-              <Button variant="outline" className="flex-1" onClick={() => setEditingRate(null)} disabled={actionLoading}>
-                Cancel
-              </Button>
-              <Button className="flex-1" onClick={handleRateSave} disabled={actionLoading}>
-                {actionLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Save Changes
-              </Button>
+                <Label>Target Scope (Vendor)</Label>
+                <Select
+                  value={rateForm.vendor_id || "global"}
+                  onValueChange={(value) => setRateForm({ ...rateForm, vendor_id: value === "global" ? null : value })}
+                >
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select target scope" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background z-50">
+                    <SelectItem value="global">Global Default (All Vendors)</SelectItem>
+                    {vendors.filter(v => v.status === 'APPROVED').map(vendor => (
+                      <SelectItem key={vendor._id} value={vendor._id}>
+                        {vendor.company_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Base Price (₹)</Label>
+                <Input type="number" value={rateForm.base_price} onChange={(e) => setRateForm({ ...rateForm, base_price: Number(e.target.value) })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Per Asset Price (₹)</Label>
+                <Input type="number" value={rateForm.per_asset_price} onChange={(e) => setRateForm({ ...rateForm, per_asset_price: Number(e.target.value) })} />
+              </div>
+              <div className="space-y-2">
+                <Label>SLA Minutes</Label>
+                <Input type="number" value={rateForm.sla_minutes} onChange={(e) => setRateForm({ ...rateForm, sla_minutes: Number(e.target.value) })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Urgent Multiplier</Label>
+                <Input type="number" step="0.1" value={rateForm.sla_multipliers.urgent || 1.5} onChange={(e) => setRateForm({ ...rateForm, sla_multipliers: { ...rateForm.sla_multipliers, urgent: Number(e.target.value) } })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Express Multiplier</Label>
+                <Input type="number" step="0.1" value={rateForm.sla_multipliers.express || 1.25} onChange={(e) => setRateForm({ ...rateForm, sla_multipliers: { ...rateForm.sla_multipliers, express: Number(e.target.value) } })} />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <Button variant="outline" className="flex-1" onClick={() => setEditingRate(null)} disabled={actionLoading}>
+                  Cancel
+                </Button>
+                <Button className="flex-1" onClick={handleRateSave} disabled={actionLoading}>
+                  {actionLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Save Changes
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Rate Card Dialog */}
       <Dialog open={showCreateRate} onOpenChange={(open) => {
@@ -1144,117 +1267,117 @@ const AdminPanel = () => {
           <div className="max-h-[65vh] overflow-y-auto pr-2 py-2 -mr-2">
             <div className="space-y-4">
               <div className="space-y-2">
-              <Label>Support Type *</Label>
-              <Select 
-                value={createRateForm.support_type} 
-                onValueChange={(value) => setCreateRateForm({ ...createRateForm, support_type: value })}
-              >
-                <SelectTrigger className="bg-background">
-                  <SelectValue placeholder="Select support type" />
-                </SelectTrigger>
-                <SelectContent className="bg-background z-50">
-                  <SelectItem value="pm activity">PM Activity</SelectItem>
-                  <SelectItem value="breakfix">Breakfix</SelectItem>
-                  <SelectItem value="on call">On Call</SelectItem>
-                  <SelectItem value="server call">Server Call</SelectItem>
-                  <SelectItem value="desktop installation">Desktop Installation</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                <Label>Support Type *</Label>
+                <Select
+                  value={createRateForm.support_type}
+                  onValueChange={(value) => setCreateRateForm({ ...createRateForm, support_type: value })}
+                >
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select support type" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background z-50">
+                    <SelectItem value="pm activity">PM Activity</SelectItem>
+                    <SelectItem value="breakfix">Breakfix</SelectItem>
+                    <SelectItem value="on call">On Call</SelectItem>
+                    <SelectItem value="server call">Server Call</SelectItem>
+                    <SelectItem value="desktop installation">Desktop Installation</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div className="space-y-2">
-              <Label>Target Scope (Vendor) *</Label>
-              <Select 
-                value={createRateForm.vendor_id || "global"} 
-                onValueChange={(value) => setCreateRateForm({ ...createRateForm, vendor_id: value === "global" ? null : value })}
-              >
-                <SelectTrigger className="bg-background">
-                  <SelectValue placeholder="Select target scope" />
-                </SelectTrigger>
-                <SelectContent className="bg-background z-50">
-                  <SelectItem value="global">Global Default (All Vendors)</SelectItem>
-                  {vendors.filter(v => v.status === 'APPROVED').map(vendor => (
-                    <SelectItem key={vendor._id} value={vendor._id}>
-                      {vendor.company_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground italic">
-                {createRateForm.vendor_id 
-                  ? "This rate will only apply to the selected vendor, overriding global defaults." 
-                  : "This will be the standard rate for all vendors who don't have an override."}
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label>Base Price (₹)</Label>
-              <Input 
-                type="number" 
-                placeholder="0" 
-                value={createRateForm.base_price} 
-                onChange={(e) => setCreateRateForm({ ...createRateForm, base_price: Number(e.target.value) })} 
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Per Asset Price (₹)</Label>
-              <Input 
-                type="number" 
-                placeholder="0" 
-                value={createRateForm.per_asset_price} 
-                onChange={(e) => setCreateRateForm({ ...createRateForm, per_asset_price: Number(e.target.value) })} 
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>SLA Minutes</Label>
-              <Input 
-                type="number" 
-                placeholder="240" 
-                value={createRateForm.sla_minutes} 
-                onChange={(e) => setCreateRateForm({ ...createRateForm, sla_minutes: Number(e.target.value) })} 
-              />
-              <p className="text-xs text-muted-foreground">Service Level Agreement response time in minutes</p>
-            </div>
-            <div className="space-y-2">
-              <Label>Urgent Multiplier</Label>
-              <Input 
-                type="number" 
-                step="0.1" 
-                placeholder="1.5" 
-                value={createRateForm.sla_multipliers.urgent} 
-                onChange={(e) => setCreateRateForm({ ...createRateForm, sla_multipliers: { ...createRateForm.sla_multipliers, urgent: Number(e.target.value) } })} 
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Express Multiplier</Label>
-              <Input 
-                type="number" 
-                step="0.1" 
-                placeholder="1.25" 
-                value={createRateForm.sla_multipliers.express} 
-                onChange={(e) => setCreateRateForm({ ...createRateForm, sla_multipliers: { ...createRateForm.sla_multipliers, express: Number(e.target.value) } })} 
-              />
-            </div>
-            <div className="flex gap-3 pt-4">
-              <Button 
-                variant="outline" 
-                className="flex-1" 
-                onClick={() => {
-                  setShowCreateRate(false);
-                  setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 }, vendor_id: null });
-                }}
-                disabled={actionLoading}
-              >
-                Cancel
-              </Button>
-              <Button className="flex-1" onClick={handleCreateRate} disabled={actionLoading}>
-                {actionLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Create Rate Card
-              </Button>
+              <div className="space-y-2">
+                <Label>Target Scope (Vendor) *</Label>
+                <Select
+                  value={createRateForm.vendor_id || "global"}
+                  onValueChange={(value) => setCreateRateForm({ ...createRateForm, vendor_id: value === "global" ? null : value })}
+                >
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select target scope" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background z-50">
+                    <SelectItem value="global">Global Default (All Vendors)</SelectItem>
+                    {vendors.filter(v => v.status === 'APPROVED').map(vendor => (
+                      <SelectItem key={vendor._id} value={vendor._id}>
+                        {vendor.company_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground ">
+                  {createRateForm.vendor_id
+                    ? "This rate will only apply to the selected vendor, overriding global defaults."
+                    : "This will be the standard rate for all vendors who don't have an override."}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Base Price (₹)</Label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={createRateForm.base_price}
+                  onChange={(e) => setCreateRateForm({ ...createRateForm, base_price: Number(e.target.value) })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Per Asset Price (₹)</Label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={createRateForm.per_asset_price}
+                  onChange={(e) => setCreateRateForm({ ...createRateForm, per_asset_price: Number(e.target.value) })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>SLA Minutes</Label>
+                <Input
+                  type="number"
+                  placeholder="240"
+                  value={createRateForm.sla_minutes}
+                  onChange={(e) => setCreateRateForm({ ...createRateForm, sla_minutes: Number(e.target.value) })}
+                />
+                <p className="text-xs text-muted-foreground">Service Level Agreement response time in minutes</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Urgent Multiplier</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  placeholder="1.5"
+                  value={createRateForm.sla_multipliers.urgent}
+                  onChange={(e) => setCreateRateForm({ ...createRateForm, sla_multipliers: { ...createRateForm.sla_multipliers, urgent: Number(e.target.value) } })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Express Multiplier</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  placeholder="1.25"
+                  value={createRateForm.sla_multipliers.express}
+                  onChange={(e) => setCreateRateForm({ ...createRateForm, sla_multipliers: { ...createRateForm.sla_multipliers, express: Number(e.target.value) } })}
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowCreateRate(false);
+                    setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 }, vendor_id: null });
+                  }}
+                  disabled={actionLoading}
+                >
+                  Cancel
+                </Button>
+                <Button className="flex-1" onClick={handleCreateRate} disabled={actionLoading}>
+                  {actionLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Create Rate Card
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
 
       {/* Vendor Detail Dialog */}
       <Dialog open={!!selectedVendor && !showRejectConfirm} onOpenChange={() => setSelectedVendor(null)}>
@@ -1278,33 +1401,36 @@ const AdminPanel = () => {
               </DialogHeader>
 
               {/* Vendor Stats */}
-              {(() => {
-                const vendorStats = getVendorStats(selectedVendor._id);
-                return (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-                    <div className="p-3 bg-primary/5 rounded-lg text-center">
-                      <FolderKanban className="w-5 h-5 text-primary mx-auto mb-1" />
-                      <p className="text-lg font-bold text-foreground">{vendorStats.projectCount}</p>
-                      <p className="text-xs text-muted-foreground">Projects</p>
-                    </div>
-                    <div className="p-3 bg-success/5 rounded-lg text-center">
-                      <CheckCircle className="w-5 h-5 text-success mx-auto mb-1" />
-                      <p className="text-lg font-bold text-foreground">{vendorStats.activeProjects}</p>
-                      <p className="text-xs text-muted-foreground">Active</p>
-                    </div>
-                    <div className="p-3 bg-warning/5 rounded-lg text-center">
-                      <PhoneCall className="w-5 h-5 text-warning mx-auto mb-1" />
-                      <p className="text-lg font-bold text-foreground">{vendorStats.callCount}</p>
-                      <p className="text-xs text-muted-foreground">Calls</p>
-                    </div>
-                    <div className="p-3 bg-accent/10 rounded-lg text-center">
-                      <IndianRupee className="w-5 h-5 text-accent-foreground mx-auto mb-1" />
-                      <p className="text-lg font-bold text-foreground">₹{vendorStats.revenue.toLocaleString()}</p>
-                      <p className="text-xs text-muted-foreground">Revenue</p>
-                    </div>
-                  </div>
-                );
-              })()}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                <div className="p-3 bg-primary/5 rounded-lg text-center">
+                  <FolderKanban className="w-5 h-5 text-primary mx-auto mb-1" />
+                  <p className="text-lg font-bold text-foreground">
+                    {summaryLoading ? <Loader2 className="w-4 h-4 mx-auto animate-spin" /> : vendorSummary?.project_count || 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Projects</p>
+                </div>
+                <div className="p-3 bg-success/5 rounded-lg text-center">
+                  <CheckCircle className="w-5 h-5 text-success mx-auto mb-1" />
+                  <p className="text-lg font-bold text-foreground">
+                    {summaryLoading ? <Loader2 className="w-4 h-4 mx-auto animate-spin" /> : vendorSummary?.active_project_count || 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Active</p>
+                </div>
+                <div className="p-3 bg-warning/5 rounded-lg text-center">
+                  <PhoneCall className="w-5 h-5 text-warning mx-auto mb-1" />
+                  <p className="text-lg font-bold text-foreground">
+                    {summaryLoading ? <Loader2 className="w-4 h-4 mx-auto animate-spin" /> : vendorSummary?.call_count || 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Calls</p>
+                </div>
+                <div className="p-3 bg-accent/10 rounded-lg text-center">
+                  <IndianRupee className="w-5 h-5 text-accent-foreground mx-auto mb-1" />
+                  <p className="text-lg font-bold text-foreground">
+                    {summaryLoading ? <Loader2 className="w-4 h-4 mx-auto animate-spin" /> : `₹${(vendorSummary?.paid_total || 0).toLocaleString()}`}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Revenue</p>
+                </div>
+              </div>
 
               <div className="space-y-4 mt-4">
                 <div className="grid sm:grid-cols-2 gap-4">
@@ -1319,7 +1445,7 @@ const AdminPanel = () => {
                     <Phone className="w-5 h-5 text-primary" />
                     <div>
                       <p className="text-xs text-muted-foreground">Phone</p>
-                      <p className="text-sm font-medium text-foreground">{selectedVendor.phone || 'N/A'}</p>
+                      <p className="text-sm font-medium text-foreground">{selectedVendor.phone_number || 'N/A'}</p>
                     </div>
                   </div>
                 </div>
@@ -1328,7 +1454,7 @@ const AdminPanel = () => {
                   <MapPin className="w-5 h-5 text-primary mt-0.5" />
                   <div>
                     <p className="text-xs text-muted-foreground">Business Address</p>
-                    <p className="text-sm font-medium text-foreground">{selectedVendor.address || 'N/A'}</p>
+                    <p className="text-sm font-medium text-foreground">{selectedVendor.business_address || 'N/A'}</p>
                   </div>
                 </div>
 
@@ -1336,6 +1462,16 @@ const AdminPanel = () => {
                   <p className="text-xs text-muted-foreground">GST Number</p>
                   <p className="text-sm font-mono font-medium text-foreground">{selectedVendor.gst_number}</p>
                 </div>
+
+                {selectedVendor.contact_person_name && (
+                  <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                    <Users className="w-5 h-5 text-primary" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Contact Person</p>
+                      <p className="text-sm font-medium text-foreground">{selectedVendor.contact_person_name}</p>
+                    </div>
+                  </div>
+                )}
 
                 {selectedVendor.created_at && (
                   <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
@@ -1410,7 +1546,7 @@ const AdminPanel = () => {
           <div className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label>Rejection Reason (Optional)</Label>
-              <textarea 
+              <textarea
                 className="w-full min-h-[100px] p-3 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="Enter reason for rejection..."
                 value={rejectionReason}
@@ -1418,9 +1554,9 @@ const AdminPanel = () => {
               />
             </div>
             <div className="flex gap-3">
-              <Button 
-                variant="outline" 
-                className="flex-1" 
+              <Button
+                variant="outline"
+                className="flex-1"
                 onClick={() => {
                   setShowRejectConfirm(false);
                   setRejectionReason('');
@@ -1429,9 +1565,9 @@ const AdminPanel = () => {
               >
                 Cancel
               </Button>
-              <Button 
-                variant="destructive" 
-                className="flex-1" 
+              <Button
+                variant="destructive"
+                className="flex-1"
                 onClick={() => selectedVendor && handleRejectVendor(selectedVendor._id, rejectionReason)}
                 disabled={actionLoading}
               >
@@ -1469,7 +1605,7 @@ const AdminPanel = () => {
           <div className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label>Hold Reason <span className="text-destructive">*</span></Label>
-              <textarea 
+              <textarea
                 className="w-full min-h-[100px] p-3 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="Enter reason for holding the call..."
                 value={holdReason}
@@ -1477,9 +1613,9 @@ const AdminPanel = () => {
               />
             </div>
             <div className="flex gap-3">
-              <Button 
-                variant="outline" 
-                className="flex-1" 
+              <Button
+                variant="outline"
+                className="flex-1"
                 onClick={() => {
                   setShowHoldCallDialog(false);
                   setHoldCallId(null);
@@ -1489,9 +1625,9 @@ const AdminPanel = () => {
               >
                 Cancel
               </Button>
-              <Button 
-                variant="default" 
-                className="flex-1" 
+              <Button
+                variant="default"
+                className="flex-1"
                 onClick={handleHoldCall}
                 disabled={actionLoading || !holdReason.trim()}
               >

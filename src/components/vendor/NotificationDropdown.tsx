@@ -11,11 +11,11 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
-import { 
-  fetchNotifications, 
-  fetchUnreadCount, 
-  markNotificationRead, 
-  Notification 
+import {
+  fetchNotifications,
+  fetchUnreadCount,
+  markNotificationRead,
+  Notification
 } from '@/services/notificationApi';
 
 export function NotificationDropdown() {
@@ -45,7 +45,7 @@ export function NotificationDropdown() {
   const handleMarkAsRead = async (id: string) => {
     const res = await markNotificationRead(id);
     if (res.success) {
-      setNotifications(prev => 
+      setNotifications(prev =>
         prev.map(n => n._id === id ? { ...n, is_read: true } : n)
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
@@ -82,16 +82,15 @@ export function NotificationDropdown() {
           ) : notifications.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
               <p className="text-sm">All caught up!</p>
-              <p className="text-xs mt-1 italic">No new notifications</p>
+              <p className="text-xs mt-1 ">No new notifications</p>
             </div>
           ) : (
             <div className="flex flex-col">
               {notifications.map((notification) => (
                 <div
                   key={notification._id}
-                  className={`p-4 border-b border-border/50 hover:bg-primary/5 transition-colors cursor-pointer relative group ${
-                    !notification.is_read ? 'bg-primary/5' : ''
-                  }`}
+                  className={`p-4 border-b border-border/50 hover:bg-primary/5 transition-colors cursor-pointer relative group ${!notification.is_read ? 'bg-primary/5' : ''
+                    }`}
                   onClick={() => !notification.is_read && handleMarkAsRead(notification._id)}
                 >
                   {!notification.is_read && (

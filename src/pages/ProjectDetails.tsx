@@ -44,7 +44,7 @@ import {
   ProjectCallRow,
 } from '@/services/projectApi';
 import { getDraftProjectStep } from '@/utils/projectStatus';
-import { fetchProjectPayoutSummary, ProjectPayoutSummary } from '@/services/payoutApi';
+import { fetchProjectBillingSummary, ProjectBillingSummary } from '@/services/billingApi';
 import {
   ArrowLeft,
   FolderKanban,
@@ -141,7 +141,7 @@ const ProjectDetails = () => {
     callId?: string;
   }>({ open: false, type: 'pause' });
 
-  const [financials, setFinancials] = useState<ProjectPayoutSummary | null>(null);
+  const [financials, setFinancials] = useState<ProjectBillingSummary | null>(null);
   const [financialsLoading, setFinancialsLoading] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
@@ -294,7 +294,7 @@ const ProjectDetails = () => {
   const loadFinancials = async () => {
     if (!projectId) return;
     setFinancialsLoading(true);
-    const result = await fetchProjectPayoutSummary(projectId);
+    const result = await fetchProjectBillingSummary(projectId);
     if (result.data) {
       setFinancials(result.data);
     }
@@ -1135,36 +1135,36 @@ const ProjectDetails = () => {
                       <CardHeader className="pb-3 border-b bg-muted/30">
                         <CardTitle className="text-lg flex items-center gap-2">
                           <IndianRupee className="h-5 w-5 text-primary" />
-                          Project Financial Flow
+                          Project Billing Life-cycle
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="pt-6">
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                           <div className="space-y-1">
-                            <p className="text-sm text-muted-foreground">Successfully Earned</p>
+                            <p className="text-sm text-muted-foreground font-medium uppercase tracking-wider text-[10px]">Successfully Paid</p>
                             <div className="flex items-baseline gap-1">
-                              <span className="text-2xl font-bold text-success">₹{financials?.paid_amount.toLocaleString() || 0}</span>
-                              <Badge variant="outline" className="text-[10px] bg-success/5 text-success border-success/20">PAID</Badge>
+                              <span className="text-2xl font-bold text-blue-600">₹{financials?.paid_amount.toLocaleString() || 0}</span>
+                              <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-600 border-blue-200 font-bold">PAID</Badge>
                             </div>
-                            <p className="text-xs text-muted-foreground">Transferred to your account</p>
+                            <p className="text-[10px] text-muted-foreground">Settled with platform</p>
                           </div>
 
                           <div className="space-y-1">
-                            <p className="text-sm text-muted-foreground">Matured Balance</p>
+                            <p className="text-sm text-muted-foreground font-medium uppercase tracking-wider text-[10px]">Billable Dues</p>
                             <div className="flex items-baseline gap-1">
-                              <span className="text-2xl font-bold text-primary">₹{financials?.matured_amount.toLocaleString() || 0}</span>
-                              <Badge variant="outline" className="text-[10px] bg-primary/5 text-primary border-primary/20">READY</Badge>
+                              <span className="text-2xl font-bold text-emerald-600">₹{financials?.billable_amount.toLocaleString() || 0}</span>
+                              <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-600 border-emerald-200 font-bold">DUE</Badge>
                             </div>
-                            <p className="text-xs text-muted-foreground">Available for next settlement</p>
+                            <p className="text-[10px] text-muted-foreground">Ready for your payment</p>
                           </div>
 
                           <div className="space-y-1">
-                            <p className="text-sm text-muted-foreground">In Maturation</p>
+                            <p className="text-sm text-muted-foreground font-medium uppercase tracking-wider text-[10px]">Unbilled Dues</p>
                             <div className="flex items-baseline gap-1">
-                              <span className="text-2xl font-bold text-warning">₹{financials?.upcoming_amount.toLocaleString() || 0}</span>
-                              <Badge variant="outline" className="text-[10px] bg-warning/5 text-warning border-warning/20">WAIT</Badge>
+                              <span className="text-2xl font-bold text-amber-600">₹{financials?.unbilled_amount.toLocaleString() || 0}</span>
+                              <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-600 border-amber-200 font-bold">WAIT</Badge>
                             </div>
-                            <p className="text-xs text-muted-foreground">Held in 7-day safety window</p>
+                            <p className="text-[10px] text-muted-foreground">In maturation window</p>
                           </div>
                         </div>
 
@@ -1172,8 +1172,8 @@ const ProjectDetails = () => {
                         <div className="mt-8 pt-6 border-t">
                           <div className="flex justify-between items-end mb-2">
                             <div className="space-y-1">
-                              <p className="text-sm font-medium">Realized Revenue</p>
-                              <p className="text-xs text-muted-foreground">Completion vs Financial Maturation</p>
+                              <p className="text-sm font-bold uppercase tracking-tighter text-foreground">Settlement Progress</p>
+                              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Invoiced vs Realized Collections</p>
                             </div>
                             <div className="text-right">
                               <span className="text-sm font-bold text-primary">
@@ -1201,28 +1201,26 @@ const ProjectDetails = () => {
                       <CardHeader className="pb-3 border-b bg-muted/30">
                         <CardTitle className="text-lg flex items-center gap-2">
                           <ShieldCheck className="h-5 w-5 text-primary" />
-                          Payout Policy
+                          Settlement Policy
                         </CardTitle>
                       </CardHeader>
-                      <CardContent className="pt-6">
-                        <div className="space-y-4">
-                          <div className="flex gap-3">
-                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                              <Clock className="h-4 w-4 text-primary" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium">7-Day Window</p>
-                              <p className="text-xs text-muted-foreground">Earnings mature 7 days after job completion for safety.</p>
-                            </div>
+                      <CardContent className="pt-6 space-y-4">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-1 p-1 bg-primary/10 rounded-full">
+                            <Clock className="h-3 w-3 text-primary" />
                           </div>
-                          <div className="flex gap-3">
-                            <div className="h-8 w-8 rounded-full bg-success/10 flex items-center justify-center shrink-0">
-                              <CheckCircle className="h-4 w-4 text-success" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium">Auto-Settlement</p>
-                              <p className="text-xs text-muted-foreground">Matured payouts are processed every Monday.</p>
-                            </div>
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-wider text-foreground">Verification Window</p>
+                            <p className="text-[10px] text-muted-foreground">Job costs mature after the platform-specified window (default 7 days) post-completion.</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <div className="mt-1 p-1 bg-success/10 rounded-full">
+                            <CheckCircle className="h-3 w-3 text-success" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-wider text-foreground">Self-Settlement</p>
+                            <p className="text-[10px] text-muted-foreground">You can initiate settlement for matured dues directly from your financials tab.</p>
                           </div>
                         </div>
                       </CardContent>

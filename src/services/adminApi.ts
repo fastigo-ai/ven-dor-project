@@ -1,7 +1,7 @@
 // Admin API Service - Integrates with FastAPI backend
 // All routes are under /admin/* prefix
 // Requires admin role authentication
-const envUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+const envUrl = import.meta.env.VITE_API_URL || 'https://door2fyvendor-gv4g4.ondigitalocean.app';
 const API_BASE_URL = typeof window !== 'undefined' && (envUrl.includes('localhost') || envUrl.includes('127.0.0.1'))
   ? `http://${window.location.hostname}:8000`
   : envUrl;
@@ -219,10 +219,12 @@ export interface Vendor {
   _id: string;
   company_name: string;
   email: string;
-  
-phone_number: string;
+  phone_number: string;
   gst_number: string;
   business_address: string;
+  contact_person_name?: string;
+  registration_number?: string;
+  website_url?: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'BLOCKED';
   created_at?: string;
   rejection_reason?: string;
@@ -594,7 +596,22 @@ export interface FinancialOverview {
   UPCOMING: { amount: number; count: number };
   DUE: { amount: number; count: number };
   PAID: { amount: number; count: number };
+  platform?: {
+    total_projects: number;
+    total_calls: number;
+    active_vendors: number;
+  };
   config: { maturation_days: number };
+}
+
+export interface VendorFinancialSummary {
+  unbilled_balance: number;
+  billable_balance: number;
+  paid_total: number;
+  project_count: number;
+  active_project_count: number;
+  call_count: number;
+  maturation_days: number;
 }
 
 export interface AdminPayoutRecord {
@@ -616,7 +633,7 @@ export interface AdminPayoutRecord {
 // GET /admin/payouts/overview - Get global financial status
 export const getFinancialOverview = async (): Promise<ApiResponse<FinancialOverview>> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/payouts/overview`, {
+    const response = await fetch(`${API_BASE_URL}/admin/billing/overview`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -640,7 +657,7 @@ export const getFinancialOverview = async (): Promise<ApiResponse<FinancialOverv
 // GET /admin/payouts/pending-approval - List matured payouts ready for settlement
 export const listPendingPayouts = async (): Promise<ApiResponse<AdminPayoutRecord[]>> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/payouts/pending-approval`, {
+    const response = await fetch(`${API_BASE_URL}/admin/billing/receivables`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -664,7 +681,7 @@ export const listPendingPayouts = async (): Promise<ApiResponse<AdminPayoutRecor
 // POST /admin/payouts/mark-as-paid - Process settlements
 export const markPayoutsAsPaid = async (payoutIds: string[]): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/payouts/mark-as-paid`, {
+    const response = await fetch(`${API_BASE_URL}/admin/billing/mark-as-paid`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -689,7 +706,7 @@ export const markPayoutsAsPaid = async (payoutIds: string[]): Promise<ApiRespons
 // POST /admin/payouts/update-config - Change maturation period
 export const updateMaturationPolicy = async (days: number): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/payouts/update-config`, {
+    const response = await fetch(`${API_BASE_URL}/admin/billing/update-config`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -707,6 +724,201 @@ export const updateMaturationPolicy = async (days: number): Promise<ApiResponse<
     return { data: result };
   } catch (error) {
     console.error('updateMaturationPolicy error:', error);
+    return { error: 'Network error' };
+  }
+};
+// GET /admin/vendors/{vendor_id}/financial-summary - Get financial summary for a specific vendor
+export const getVendorFinancialSummary = async (vendorId: string): Promise<ApiResponse<VendorFinancialSummary>> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/billing/vendor/${vendorId}/summary`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      return { error: error.detail || 'Failed to fetch vendor financial summary' };
+    }
+
+    const data = await response.json();
+    return { data };
+  } catch (error) {
+    console.error('getVendorFinancialSummary error:', error);
+    return { error: 'Network error' };
+  }
+};
+
+// POST /admin/vendors/{vendor_id}/maturation-policy - Update maturation policy for a specific vendor
+export const updateVendorMaturationPolicy = async (vendorId: string, days: number): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/billing/vendor-maturation`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ vendor_id: vendorId, maturation_days: days }),
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      return { error: error.detail || 'Failed to update vendor policy' };
+    }
+
+    const result = await response.json();
+    return { data: result };
+  } catch (error) {
+    console.error('updateVendorMaturationPolicy error:', error);
+    return { error: 'Network error' };
+  }
+};
+// GET /admin/billing/transactions - Audit trail of all platform-wide payment attempts
+export const getBillingTransactions = async (vendorId?: string, status?: string): Promise<ApiResponse<any[]>> => {
+  try {
+    let url = `${API_BASE_URL}/admin/billing/transactions`;
+    const params = new URLSearchParams();
+    if (vendorId && vendorId !== 'global') params.append('vendor_id', vendorId);
+    if (status) params.append('status', status);
+    
+    if (params.toString()) url += `?${params.toString()}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      return { error: error.detail || 'Failed to fetch transaction audit trail' };
+    }
+
+    const data = await response.json();
+    return { data };
+  } catch (error) {
+    console.error('getBillingTransactions error:', error);
+    return { error: 'Network error' };
+  }
+};
+
+// POST /admin/billing/reconcile/{order_id} - Manually sync order status from Razorpay
+export const reconcileOrder = async (orderId: string): Promise<ApiResponse<{ message: string, success: boolean }>> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/billing/reconcile/${orderId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include'
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      return { error: data.detail || 'Reconciliation failed' };
+    }
+
+    return { data };
+  } catch (error) {
+    console.error('reconcileOrder error:', error);
+    return { error: 'Network error. Please try again.' };
+  }
+};
+// GET /admin/notifications - Get all admin notifications
+export const fetchAdminNotifications = async (): Promise<ApiResponse<any[]>> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/notifications`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      return { error: error.detail || 'Failed to fetch notifications' };
+    }
+
+    const data = await response.json();
+    return { data };
+  } catch (error) {
+    console.error('fetchAdminNotifications error:', error);
+    return { error: 'Network error' };
+  }
+};
+
+// GET /admin/notifications/unread-count - Get unread count
+export const fetchAdminUnreadCount = async (): Promise<ApiResponse<{ unread_count: number }>> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/notifications/unread-count`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      return { error: error.detail || 'Failed to fetch unread count' };
+    }
+
+    const data = await response.json();
+    return { data };
+  } catch (error) {
+    console.error('fetchAdminUnreadCount error:', error);
+    return { error: 'Network error' };
+  }
+};
+
+// POST /admin/notifications/{id}/read - Mark as read
+export const markAdminNotificationRead = async (id: string): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/notifications/${id}/read`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      return { error: error.detail || 'Failed to mark as read' };
+    }
+
+    const data = await response.json();
+    return { data };
+  } catch (error) {
+    console.error('markAdminNotificationRead error:', error);
+    return { error: 'Network error' };
+  }
+};
+// POST /admin/notifications/read-all - Mark all as read
+export const markAllAdminNotificationsRead = async (): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/notifications/read-all`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      return { error: error.detail || 'Failed to mark all as read' };
+    }
+
+    const data = await response.json();
+    return { data };
+  } catch (error) {
+    console.error('markAllAdminNotificationsRead error:', error);
     return { error: 'Network error' };
   }
 };

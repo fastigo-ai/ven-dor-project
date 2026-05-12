@@ -1,4 +1,4 @@
-import { BackendProjectData } from '@/contexts/VendorContext';
+import { BackendProjectData } from '@/types/vendor';
 
 export interface ProjectStepInfo {
   step: number;
