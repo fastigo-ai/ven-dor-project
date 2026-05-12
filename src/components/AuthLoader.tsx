@@ -34,6 +34,12 @@ const AuthLoader = ({ children }: AuthLoaderProps) => {
 
   useEffect(() => {
     const rehydrateAuth = async () => {
+      // 🛡️ Skip vendor profile fetch on admin routes to prevent 403 errors
+      if (isAdminRoute) {
+        setIsLoading(false);
+        return;
+      }
+
       const access_token = getAuthToken();
       const refresh_token = getRefreshToken();
 

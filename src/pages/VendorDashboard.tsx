@@ -221,7 +221,7 @@ const VendorDashboard = () => {
         <div className="mb-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+              <h1 className="text-2xl md:text-4xl font-black tracking-tighter text-foreground">
                 Welcome back, {currentVendor?.contactPersonName?.split(' ')[0] || 'Vendor'}!
               </h1>
               <p className="text-muted-foreground mt-1">
@@ -241,7 +241,7 @@ const VendorDashboard = () => {
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-semibold text-foreground">
+                  <h2 className="text-xl font-black tracking-tight text-foreground">
                     {currentVendor?.companyName || 'Door2Fy Partner'}
                   </h2>
                   {rateCards.some(c => c.vendor_id) && (
@@ -272,7 +272,7 @@ const VendorDashboard = () => {
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground font-medium">{stat.title}</p>
-                      <p className="text-3xl font-bold text-foreground mt-2 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                      <p className="text-4xl font-black tracking-tighter text-foreground mt-1 tabular-nums">
                         {stat.value}
                       </p>
                       <div className="flex items-center gap-1 mt-2">

@@ -24,7 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useVendor, RateCard } from "@/contexts/VendorContext";
+import { useVendor } from "@/contexts/VendorContext";
+import { RateCard } from "@/types/vendor";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
