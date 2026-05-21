@@ -47,6 +47,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { getDraftProjectStep } from '@/utils/projectStatus';
+import { NotificationDropdown } from '@/components/vendor/NotificationDropdown';
 
 const statusColors: Record<string, string> = {
   ACTIVE: 'bg-success/10 text-success border-success/30',
@@ -145,10 +146,7 @@ const VendorProjects = () => {
             </div>
 
             <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5 text-muted-foreground" />
-                <span className="absolute -top-1 -right-1 w-2 h-2 bg-destructive rounded-full" />
-              </Button>
+              <NotificationDropdown />
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

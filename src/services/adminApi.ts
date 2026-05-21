@@ -1,10 +1,8 @@
 // Admin API Service - Integrates with FastAPI backend
 // All routes are under /admin/* prefix
 // Requires admin role authentication
-const envUrl = import.meta.env.VITE_API_URL || 'https://door2fyvendor-gv4g4.ondigitalocean.app';
-const API_BASE_URL = typeof window !== 'undefined' && (envUrl.includes('localhost') || envUrl.includes('127.0.0.1'))
-  ? `http://${window.location.hostname}:8000`
-  : envUrl;
+import { API_BASE_URL } from './apiConfig';
+
 const ADMIN_TOKEN_KEY = 'admin_token';
 
 // Admin token management
@@ -90,6 +88,8 @@ export interface RateCard {
   sla_minutes: number;
   sla_multipliers: Record<string, number>;
   vendor_id?: string | null;
+  vendor_ids?: string[];
+  status?: string;
   created_at?: string;
 }
 
@@ -108,6 +108,8 @@ export interface RateCardUpdate {
   sla_minutes: number;
   sla_multipliers: Record<string, number>;
   vendor_id?: string | null;
+  vendor_ids?: string[];
+  status?: string;
 }
 
 // GET /admin/rate-cards - List all rate cards
@@ -177,10 +179,10 @@ export const addRateCard = async (payload: RateCardCreate): Promise<ApiResponse<
   }
 };
 
-// PUT /admin/rate-card/{support_type} - Update rate card
-export const updateRateCard = async (supportType: string, payload: RateCardUpdate): Promise<ApiResponse<{ message: string }>> => {
+// PUT /admin/rate-card/{id} - Update rate card
+export const updateRateCard = async (id: string, payload: RateCardUpdate): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/rate-card/${encodeURIComponent(supportType)}`, {
+    const response = await fetch(`${API_BASE_URL}/admin/rate-card/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -208,6 +210,24 @@ export const updateRateCard = async (supportType: string, payload: RateCardUpdat
   } catch (error) {
     console.error('updateRateCard error:', error);
     return { error: 'Network error. Please try again.' };
+  }
+};
+
+// PATCH /admin/rate-card/{id}/status - Update rate card status
+export const archiveRateCardApi = async (id: string, status: string = "archived"): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/rate-card/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+      credentials: 'include'
+    });
+    const data = await response.json();
+    if (!response.ok) return { error: data.detail || 'Failed to update status' };
+    return { data };
+  } catch (error) {
+    console.error('Archive rate card error:', error);
+    return { error: 'Network error' };
   }
 };
 
@@ -775,6 +795,27 @@ export const updateVendorMaturationPolicy = async (vendorId: string, days: numbe
     return { error: 'Network error' };
   }
 };
+
+export const updateBulkMaturationPolicy = async (vendorIds: string[], days: number): Promise<ApiResponse<any>> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/vendors/bulk-maturation-policy`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ vendor_ids: vendorIds, maturation_days: days }),
+      credentials: 'include'
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      return { error: error.detail || 'Failed to bulk update' };
+    }
+    return { data: await response.json() };
+  } catch (error) {
+    return { error: 'Network error' };
+  }
+};
+
 // GET /admin/billing/transactions - Audit trail of all platform-wide payment attempts
 export const getBillingTransactions = async (vendorId?: string, status?: string): Promise<ApiResponse<any[]>> => {
   try {

@@ -4,7 +4,7 @@
 import { apiFetch } from './apiClient';
 import { removeAuthToken } from './authApi';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://door2fyvendor-gv4g4.ondigitalocean.app';
+import { API_BASE_URL } from './apiConfig';
 
 interface ApiResponse<T = unknown> {
   data?: T;
@@ -391,9 +391,21 @@ export const fetchVendorProjects = async (
 };
 
 // Fetch project details - GET /projects/{project_id}/details
-export const fetchProjectDetails = async (projectId: string): Promise<ApiResponse<ProjectDetailsResponse>> => {
+export const fetchProjectDetails = async (
+  projectId: string,
+  search?: string,
+  status?: string,
+  serviceable?: boolean,
+  page: number = 1,
+  pageSize: number = 50
+): Promise<ApiResponse<ProjectDetailsResponse>> => {
   try {
-    const response = await apiFetch(`/projects/${projectId}/details`);
+    let url = `/projects/${projectId}/details?page=${page}&page_size=${pageSize}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+    if (status && status !== 'all') url += `&status=${encodeURIComponent(status)}`;
+    if (serviceable !== undefined) url += `&serviceable=${serviceable}`;
+
+    const response = await apiFetch(url);
 
     if (!response.ok) {
       if (response.status === 401) {

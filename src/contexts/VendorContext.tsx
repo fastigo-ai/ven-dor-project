@@ -53,7 +53,14 @@ interface VendorContextType {
   selectedProjectDetails: ProjectDetailsResponse | null;
   selectedProjectLoading: boolean;
   selectedProjectError: string | null;
-  loadProjectDetails: (projectId: string) => Promise<ProjectDetailsResponse | null>;
+  loadProjectDetails: (
+    projectId: string,
+    search?: string,
+    status?: string,
+    serviceable?: boolean,
+    page?: number,
+    pageSize?: number
+  ) => Promise<ProjectDetailsResponse | null>;
   clearSelectedProject: () => void;
   
   // Add new project to backend list (after creation)
@@ -211,7 +218,9 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
       if (response.error) {
         setRateCardsError(response.error);
       } else if (response.data) {
-        setRateCards(response.data);
+        // Filter out archived rate cards so they don't appear in the Vendor Portal
+        const activeRateCards = response.data.filter((card) => card.status !== 'archived');
+        setRateCards(activeRateCards);
       }
     } catch (err) {
       setRateCardsError('Failed to load rate cards');
@@ -319,12 +328,19 @@ export const VendorProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // Fetch single project details from backend
-  const loadProjectDetails = useCallback(async (projectId: string): Promise<ProjectDetailsResponse | null> => {
+  const loadProjectDetails = useCallback(async (
+    projectId: string,
+    search?: string,
+    status?: string,
+    serviceable?: boolean,
+    page: number = 1,
+    pageSize: number = 50
+  ): Promise<ProjectDetailsResponse | null> => {
     setSelectedProjectLoading(true);
     setSelectedProjectError(null);
     
     try {
-      const response = await fetchProjectDetails(projectId);
+      const response = await fetchProjectDetails(projectId, search, status, serviceable, page, pageSize);
       
       if (response.error) {
         setSelectedProjectError(response.error);

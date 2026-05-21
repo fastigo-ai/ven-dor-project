@@ -1,5 +1,6 @@
-import { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useDebounce } from '@/hooks/use-debounce';
 import { useVendor } from '@/contexts/VendorContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +32,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import Logo from '@/components/Logo';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -76,7 +85,20 @@ import {
   Upload,
   RefreshCw,
   ArrowRight,
+  LogOut,
+  LayoutGrid,
 } from 'lucide-react';
+import { NotificationDropdown } from '@/components/vendor/NotificationDropdown';
+import { logoutUser } from '@/services/authApi';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const statusColors: Record<string, string> = {
   ACTIVE: 'bg-success/10 text-success border-success/30',
@@ -99,6 +121,8 @@ const callStatusColors: Record<string, string> = {
   hold: 'bg-warning/10 text-warning border-warning/30',
   dispatched: 'bg-primary/10 text-primary border-primary/30',
   assigned: 'bg-success/10 text-success border-success/30',
+  failed: 'bg-destructive/10 text-destructive border-destructive/30',
+  not_serviceable: 'bg-destructive/10 text-destructive border-destructive/30',
 };
 
 const callStatusIcons: Record<string, React.ReactNode> = {
@@ -109,6 +133,8 @@ const callStatusIcons: Record<string, React.ReactNode> = {
   hold: <Pause className="h-3 w-3" />,
   dispatched: <Activity className="h-3 w-3" />,
   assigned: <User className="h-3 w-3" />,
+  failed: <XCircle className="h-3 w-3" />,
+  not_serviceable: <AlertCircle className="h-3 w-3" />,
 };
 
 const supportTypeLabels: Record<string, { label: string; icon: React.ReactNode }> = {
@@ -123,7 +149,18 @@ const supportTypeLabels: Record<string, { label: string; icon: React.ReactNode }
 const ProjectDetails = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const [localDetails, setLocalDetails] = useState<ProjectDetailsResponse | null>(null);
+  const [localLoading, setLocalLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all');
+  const [page, setPage] = useState(parseInt(searchParams.get('page') || '1'));
+
+  const debouncedSearch = useDebounce(searchTerm, 500);
+
   const {
+    currentVendor,
     loadProjectDetails,
     selectedProjectDetails,
     selectedProjectLoading,
@@ -162,7 +199,12 @@ const ProjectDetails = () => {
 
   // Find project from list for basic info
   const project = backendProjects.find(p => p.id === projectId);
-  const details = selectedProjectDetails;
+  
+  // Use local details if available, otherwise fallback to context (for initial load)
+  const details = localDetails || selectedProjectDetails;
+  const calls = details?.calls || [];
+  const summary = details?.summary;
+  const pagination = details?.pagination;
 
   const status = (project?.status?.toUpperCase() || details?.project?.status?.toUpperCase() || 'DRAFT');
 
@@ -181,32 +223,77 @@ const ProjectDetails = () => {
     return Array.from(new Set(images.filter(Boolean)));
   };
 
+
+
   useEffect(() => {
-    if (projectId) {
-      loadProjectDetails(projectId);
-      loadFinancials();
-
-      const checkDraftStatus = async () => {
-        // Guard against undefined project data initially
-        if (!project && !details?.project) return;
-
-        const stepInfo = getDraftProjectStep(project || (details?.project as any));
-        if (status === 'DRAFT') {
-          if (!activeSetupStep) {
-            setActiveSetupStep(stepInfo.step);
-          }
-
-          if (stepInfo.step >= 3) {
-            checkAndResumeValidation();
-          }
-          if (stepInfo.step === 4 || activeSetupStep === 4) {
-            fetchCostSummary();
-          }
+    const fetchDetails = async () => {
+      if (!projectId) return;
+      
+      setLocalLoading(true);
+      try {
+        const { fetchProjectDetails } = await import('@/services/projectApi');
+        const response = await fetchProjectDetails(
+          projectId, 
+          debouncedSearch, 
+          (statusFilter === 'all' || statusFilter === 'failed') ? undefined : statusFilter, 
+          statusFilter === 'failed' ? false : undefined,
+          page
+        );
+        
+        if (response.data) {
+          setLocalDetails(response.data);
         }
-      };
-      checkDraftStatus();
-    }
-  }, [projectId, status]);
+      } catch (err) {
+        console.error("Failed to load local details:", err);
+      } finally {
+        setLocalLoading(false);
+      }
+    };
+
+    fetchDetails();
+    loadFinancials();
+  }, [projectId, debouncedSearch, statusFilter, page, refreshKey]);
+
+  const isLocalLoading = localLoading;
+
+  // Sync state to URL
+
+  // Sync state to URL
+  useEffect(() => {
+    const params: any = {};
+    if (debouncedSearch) params.search = debouncedSearch;
+    if (statusFilter !== 'all') params.status = statusFilter;
+    if (page > 1) params.page = page.toString();
+    setSearchParams(params, { replace: true });
+  }, [debouncedSearch, statusFilter, page, setSearchParams]);
+
+  const refreshProjectData = () => {
+    setRefreshKey(prev => prev + 1);
+    loadFinancials();
+  };
+  useEffect(() => {
+    const checkDraftStatus = async () => {
+      if (!projectId) return;
+      
+      // Guard against undefined project data initially
+      if (!project && !details?.project) return;
+
+      const stepInfo = getDraftProjectStep(project || (details?.project as any));
+      if (status === 'DRAFT') {
+        if (!activeSetupStep) {
+          setActiveSetupStep(stepInfo.step);
+        }
+
+        if (stepInfo.step >= 3) {
+          checkAndResumeValidation();
+        }
+        if (stepInfo.step === 4 || activeSetupStep === 4) {
+          fetchCostSummary();
+        }
+      }
+    };
+    checkDraftStatus();
+  }, [projectId, status, project, details?.project]);
 
   const checkAndResumeValidation = async () => {
     if (!projectId) return;
@@ -246,41 +333,64 @@ const ProjectDetails = () => {
     if (!projectId || isValidatingAddresses) return;
 
     setIsValidatingAddresses(true);
-    setValidationMessage("Checking validation progress...");
+    setValidationMessage("Connecting to real-time updates...");
 
     try {
       const { validateProjectAddresses } = await import("@/services/projectApi");
-      let pollingCount = 0;
-      const MAX_POLLS = 30; // ~60 seconds total
+      const { API_BASE_URL } = await import("@/services/apiConfig");
 
-      while (pollingCount < MAX_POLLS) {
-        const result = await validateProjectAddresses(projectId);
-        if (result.error) throw new Error(result.error);
+      const eventSource = new EventSource(
+        `${API_BASE_URL}/projects/${projectId}/events`,
+        { withCredentials: true }
+      );
 
-        const apiData = result.data;
-        if (!apiData) break;
+      eventSource.onmessage = async (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.message) {
+            setValidationMessage(data.message);
+          }
 
-        setValidationSummary({
-          serviceable: apiData.summary?.service_available || 0,
-          unserviceable: apiData.summary?.service_not_available || 0,
-          processing: apiData.summary?.processing_count || 0,
-          isProcessing: apiData.is_processing
-        });
+          // Fetch latest summary to keep the UI in sync
+          const summaryResult = await validateProjectAddresses(projectId);
+          if (summaryResult.data) {
+            const apiData = summaryResult.data;
+            setValidationSummary({
+              serviceable: apiData.summary?.service_available || 0,
+              unserviceable: apiData.summary?.service_not_available || 0,
+              processing: apiData.summary?.processing_count || 0,
+              isProcessing: apiData.is_processing
+            });
 
-        if (!apiData.is_processing) {
-          formatValidationResults(apiData);
-          toast({ title: "Validation Complete", description: "Your addresses have been verified." });
-          loadProjectDetails(projectId); // Refresh project info
-          break;
+            if (!apiData.is_processing) {
+              eventSource.close();
+              formatValidationResults(apiData);
+              toast({ title: "Validation Complete", description: "Your addresses have been verified." });
+              loadProjectDetails(projectId);
+              setIsValidatingAddresses(false);
+            }
+          }
+
+          if (data.status === "FAILED") {
+            eventSource.close();
+            setIsValidatingAddresses(false);
+            toast({ title: "Validation Failed", description: data.message, variant: "destructive" });
+          }
+        } catch (err) {
+          console.error("SSE Message Error:", err);
         }
+      };
 
-        pollingCount++;
-        setValidationMessage(`Validating addresses (${pollingCount}/${MAX_POLLS})...`);
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
+      eventSource.onerror = (err) => {
+        console.error("SSE Connection Error:", err);
+      };
+
+      // Cleanup on component unmount is handled by the Effect if we return it, 
+      // but here we are in an async function. We'll store it in a ref if needed,
+      // but for now, it closes on completion.
     } catch (error) {
-      console.error("Polling error:", error);
-    } finally {
+      console.error("SSE Initialization Error:", error);
       setIsValidatingAddresses(false);
     }
   };
@@ -436,8 +546,7 @@ const ProjectDetails = () => {
   const supportTypeKey = (project?.support_type?.toLowerCase() || details?.project?.support_type?.toLowerCase() || 'breakfix');
   const supportTypeInfo = supportTypeLabels[supportTypeKey] || { label: 'Support', icon: <Briefcase className="h-4 w-4" /> };
 
-  const summary = details?.summary;
-  const calls = details?.calls || [];
+
 
   const isProjectPaused = status === 'PAUSED' || status === 'ON-HOLD' || status === 'HOLD';
   const isProjectHeldByAdmin = details?.project?.held_by === 'admin';
@@ -544,6 +653,52 @@ const ProjectDetails = () => {
               </Button>
               <Logo />
             </div>
+
+            <div className="flex items-center gap-3">
+              <NotificationDropdown />
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="flex items-center gap-2 hover:bg-muted">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-primary text-primary-foreground text-sm">
+                        {currentVendor?.companyName ? currentVendor.companyName.charAt(0).toUpperCase() : 'V'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="hidden sm:block text-sm font-medium">
+                      {currentVendor?.companyName || 'Vendor'}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>
+                    <div className="flex flex-col">
+                      <span>{currentVendor?.companyName || 'Vendor'}</span>
+                      <span className="text-xs text-muted-foreground font-normal">
+                        {currentVendor?.email}
+                      </span>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>
+                    <User className="h-4 w-4 mr-2" />
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/dashboard')}>
+                    <LayoutGrid className="h-4 w-4 mr-2" />
+                    Dashboard
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={async () => {
+                    await logoutUser();
+                    navigate('/login');
+                  }} className="text-destructive">
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
       </header>
@@ -598,18 +753,21 @@ const ProjectDetails = () => {
                 <div className="flex items-center gap-3">
                   {status === 'DRAFT' && (project || details?.project) && (() => {
                     const stepInfo = getDraftProjectStep(project || (details?.project as any));
+                    const isProcessing = validationSummary.isProcessing;
+                    
                     return (
                       <Button
                         onClick={handleResumeEnrichment}
-                        disabled={actionLoading === 'resume-processing'}
+                        disabled={actionLoading === 'resume-processing' || (stepInfo.step === 3 && isProcessing)}
                         className="gradient-primary shadow-glow group px-6"
                       >
-                        {actionLoading === 'resume-processing' ? (
+                        {actionLoading === 'resume-processing' || (stepInfo.step === 3 && isProcessing) ? (
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                         ) : (
                           <Play className="h-4 w-4 mr-2 transition-transform group-hover:scale-110" />
                         )}
-                        {stepInfo.nextAction}
+                        {stepInfo.step === 3 && isProcessing ? "Validating..." : 
+                         stepInfo.step === 4 ? "Activate Project" : stepInfo.nextAction}
                       </Button>
                     );
                   })()}
@@ -769,14 +927,18 @@ const ProjectDetails = () => {
                             </div>
                           </CardContent>
                         </Card>
-                        <Card className={cn(validationSummary.isProcessing ? "bg-primary/5 border-primary/20 animate-pulse" : "bg-muted/50 border-border")}>
+                        <Card className={cn(validationSummary.isProcessing ? "bg-primary/5 border-primary/20 shadow-glow" : "bg-muted/50 border-border")}>
                           <CardContent className="p-4 flex items-center gap-4">
                             <div className="p-2 rounded-full bg-primary/20 text-primary">
                               {validationSummary.isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
                             </div>
                             <div>
-                              <p className="text-xs uppercase font-bold text-muted-foreground">Processing</p>
-                              <p className="text-2xl font-bold">{validationSummary.processing}</p>
+                              <p className="text-xs uppercase font-bold text-muted-foreground">
+                                {validationSummary.isProcessing ? "Status: Validating" : "Status: Ready"}
+                              </p>
+                              <p className="text-2xl font-bold">
+                                {validationSummary.isProcessing ? "..." : validationSummary.processing}
+                              </p>
                             </div>
                           </CardContent>
                         </Card>
@@ -908,7 +1070,7 @@ const ProjectDetails = () => {
                             <Button
                               className="w-full h-14 gradient-primary text-lg font-bold shadow-glow group"
                               onClick={handleActivateProject}
-                              disabled={actionLoading === 'resume-processing'}
+                              disabled={actionLoading === 'resume-processing' || validationSummary.isProcessing}
                             >
                               {actionLoading === 'resume-processing' ? (
                                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -1226,92 +1388,96 @@ const ProjectDetails = () => {
                       </CardContent>
                     </Card>
                   </div>
-
-                  {/* Quick Stats */}
-                  <Card className="shadow-card">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <Activity className="h-5 w-5 text-primary" />
-                        Call Statistics
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-                        <div className="text-center p-4 bg-success/5 rounded-xl border border-success/20">
-                          <CheckCircle className="h-6 w-6 text-success mx-auto mb-2" />
-                          <p className="text-2xl font-bold text-success">
-                            {calls.filter(c => c.status?.toUpperCase() === 'COMPLETED').length}
-                          </p>
-                          <p className="text-sm text-muted-foreground">Completed</p>
-                        </div>
-                        <div className="text-center p-4 bg-primary/5 rounded-xl border border-primary/20">
-                          <Activity className="h-6 w-6 text-primary mx-auto mb-2" />
-                          <p className="text-2xl font-bold text-primary">
-                            {calls.filter(c => ['ASSIGNED', 'DISPATCHED'].includes(c.status?.toUpperCase() || '')).length}
-                          </p>
-                          <p className="text-sm text-muted-foreground">Active</p>
-                        </div>
-                        <div className="text-center p-4 bg-muted/50 rounded-xl border border-muted">
-                          <Clock className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
-                          <p className="text-2xl font-bold text-muted-foreground">
-                            {calls.filter(c => c.status?.toUpperCase() === 'PENDING').length}
-                          </p>
-                          <p className="text-sm text-muted-foreground">Pending</p>
-                        </div>
-                        <div className="text-center p-4 bg-warning/5 rounded-xl border border-warning/20">
-                          <Pause className="h-6 w-6 text-warning mx-auto mb-2" />
-                          <p className="text-2xl font-bold text-warning">
-                            {calls.filter(c => c.status?.toUpperCase() === 'HOLD').length}
-                          </p>
-                          <p className="text-sm text-muted-foreground">On Hold</p>
-                        </div>
-                        <div className="text-center p-4 bg-destructive/5 rounded-xl border border-destructive/20">
-                          <XCircle className="h-6 w-6 text-destructive mx-auto mb-2" />
-                          <p className="text-2xl font-bold text-destructive">
-                            {calls.filter(c => c.status?.toUpperCase() === 'CANCELLED').length}
-                          </p>
-                          <p className="text-sm text-muted-foreground">Cancelled</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
                 </TabsContent>
+                
+                {/* Call Records */}
+                <TabsContent value="calls" className="space-y-4">
+                  {/* Quick Count Strip */}
+                  <div className="flex flex-wrap gap-3 p-3 bg-muted/30 rounded-xl border border-border/40">
+                    <div className="flex items-center gap-2 px-3 py-1 bg-background rounded-lg border shadow-sm">
+                      <Phone className="h-3.5 w-3.5 text-primary" />
+                      <span className="text-xs font-medium text-muted-foreground">Total:</span>
+                      <span className="text-sm font-bold text-foreground">{summary?.total_calls || 0}</span>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 py-1 bg-background rounded-lg border shadow-sm">
+                      <Activity className="h-3.5 w-3.5 text-success" />
+                      <span className="text-xs font-medium text-muted-foreground">Active:</span>
+                      <span className="text-sm font-bold text-success">{summary?.active_calls || 0}</span>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 py-1 bg-background rounded-lg border shadow-sm">
+                      <CheckCircle className="h-3.5 w-3.5 text-primary" />
+                      <span className="text-xs font-medium text-muted-foreground">Completed:</span>
+                      <span className="text-sm font-bold text-primary">{summary?.completed_calls || 0}</span>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 py-1 bg-background rounded-lg border shadow-sm">
+                      <AlertCircle className="h-3.5 w-3.5 text-destructive" />
+                      <span className="text-xs font-medium text-muted-foreground">Not Serviceable:</span>
+                      <span className="text-sm font-bold text-destructive">
+                        {(summary?.total_calls || 0) - (summary?.serviceable_calls || 0)}
+                      </span>
+                    </div>
+                  </div>
 
-                {/* Calls Tab */}
-                <TabsContent value="calls">
                   <Card className="shadow-card">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          <Phone className="h-5 w-5 text-primary" />
-                          Call Records
-                        </CardTitle>
-                        <Badge variant="secondary">{calls.length} Records</Badge>
+                    <CardHeader className="pb-3 border-b flex flex-row items-center justify-between space-y-0">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Phone className="h-5 w-5 text-primary" />
+                        Call Records
+                      </CardTitle>
+                      <div className="flex items-center gap-3">
+                        <div className="relative w-64">
+                          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search branch, code, pincode..."
+                            value={searchTerm}
+                            onChange={(e) => {
+                              setSearchTerm(e.target.value);
+                              setPage(1); // Reset to first page on search
+                            }}
+                            className="pl-8 bg-muted/50 border-none focus-visible:ring-primary h-9"
+                          />
+                        </div>
+                        <Select
+                          value={statusFilter}
+                          onValueChange={(val) => {
+                            setStatusFilter(val);
+                            setPage(1);
+                          }}
+                        >
+                          <SelectTrigger className="w-[160px] bg-muted/50 border-none h-9">
+                            <SelectValue placeholder="All Statuses" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Statuses</SelectItem>
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="dispatched">Dispatched</SelectItem>
+                            <SelectItem value="assigned">Assigned</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
+                            <SelectItem value="hold">On Hold</SelectItem>
+                            <SelectItem value="failed">Not Serviceable</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={refreshProjectData}>
+                          <RefreshCw className={cn("h-4 w-4", isLocalLoading && "animate-spin")} />
+                        </Button>
                       </div>
                     </CardHeader>
                     <CardContent className="p-0">
-                      {selectedProjectLoading ? (
+                      {isLocalLoading && !localDetails ? (
                         <div className="p-6 space-y-4">
                           {[...Array(5)].map((_, i) => (
                             <Skeleton key={i} className="h-16 w-full" />
                           ))}
                         </div>
-                      ) : calls.length === 0 ? (
-                        <div className="p-12 text-center">
-                          <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                            <Phone className="h-8 w-8 text-muted-foreground" />
-                          </div>
-                          <h3 className="text-lg font-semibold mb-2">No Call Records</h3>
-                          <p className="text-muted-foreground">No call records found for this project.</p>
-                        </div>
                       ) : (
-                        <ScrollArea className="h-[500px]">
-                          <Table>
-                            <TableHeader className="sticky top-0 bg-card z-10">
+                        <ScrollArea className="h-[600px]">
+                          <div className={cn("transition-opacity", isLocalLoading && "opacity-50 pointer-events-none")}>
+                            <Table>
+                            <TableHeader className="bg-muted/30 sticky top-0 z-10">
                               <TableRow>
-                                <TableHead>Branch</TableHead>
-                                <TableHead>Address</TableHead>
-                                <TableHead>Engineer</TableHead>
+                                <TableHead>Branch Details</TableHead>
+                                <TableHead>Location</TableHead>
+                                <TableHead>Assigned Engineer</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead>Images</TableHead>
                                 <TableHead className="text-right">Assets</TableHead>
@@ -1320,146 +1486,157 @@ const ProjectDetails = () => {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {calls.map((call, idx) => {
-                                const onHold = isCallOnHold(call);
-                                const canHold = canHoldCall(call);
-                                const isLoading = actionLoading === call.call_id;
+                              {calls.length === 0 ? (
+                                <TableRow>
+                                  <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                                    No call records found matching your filters.
+                                  </TableCell>
+                                </TableRow>
+                              ) : (
+                                calls.map((call, idx) => {
+                                  const onHold = isCallOnHold(call);
+                                  const canHold = canHoldCall(call);
+                                  const isLoading = actionLoading === call.call_id;
 
-                                return (
-                                  <TableRow key={call.call_id || idx} className="hover:bg-muted/50">
-                                    <TableCell>
-                                      <div>
-                                        <p className="font-medium">{call.branch_name || 'N/A'}</p>
-                                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                          <Hash className="h-3 w-3" />
-                                          {call.branch_code || 'N/A'}
-                                        </p>
-                                      </div>
-                                    </TableCell>
-                                    <TableCell>
-                                      <div className="max-w-[200px]">
-                                        <p className="text-sm truncate">{call.address || 'N/A'}</p>
-                                        <Badge variant="outline" className="mt-1 text-xs">
-                                          <MapPin className="h-3 w-3 mr-1" />
-                                          {call.pincode || 'N/A'}
-                                        </Badge>
-                                      </div>
-                                    </TableCell>
-                                    <TableCell>
-                                      <div>
-                                        <p className="text-sm">{call.engineer_name || 'Not Assigned'}</p>
-                                        {call.engineer_contact && (
+                                  return (
+                                    <TableRow key={call.call_id || idx} className="hover:bg-muted/50">
+                                      <TableCell>
+                                        <div>
+                                          <p className="font-medium">{call.branch_name || 'N/A'}</p>
                                           <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                            <Phone className="h-3 w-3" />
-                                            {call.engineer_contact}
+                                            <Hash className="h-3 w-3" />
+                                            {call.branch_code || 'N/A'}
                                           </p>
-                                        )}
-                                      </div>
-                                    </TableCell>
-                                    <TableCell>
-                                      <Badge
-                                        variant="outline"
-                                        className={`flex items-center gap-1 w-fit ${callStatusColors[call.status?.toLowerCase() || ''] || callStatusColors.pending}`}
-                                      >
-                                        {callStatusIcons[call.status?.toLowerCase() || ''] || callStatusIcons.pending}
-                                        {call.status || 'Pending'}
-                                      </Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                      <div className="flex -space-x-2 overflow-hidden hover:overflow-visible transition-all">
-                                        {(() => {
-                                          const callImages = getAllProofImages(call);
-                                          return callImages.length > 0 ? (
-                                            callImages.map((img, i) => (
-                                              <div
-                                                key={i}
-                                                className="relative w-8 h-8 rounded-full border-2 border-card cursor-pointer hover:z-10 transition-transform hover:scale-125 bg-muted flex items-center justify-center shadow-sm"
-                                                onClick={() => setPreviewImage(img)}
-                                              >
-                                                <img
-                                                  src={img}
-                                                  alt={`Proof ${i + 1}`}
-                                                  className="w-full h-full object-cover rounded-full"
-                                                />
-                                              </div>
-                                            ))
-                                          ) : (
-                                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center border-2 border-card text-muted-foreground/30">
-                                              <ImageIcon className="h-3.5 w-3.5" />
-                                            </div>
-                                          );
-                                        })()}
-                                      </div>
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                      <span className="font-medium">{call.asset_count || 0}</span>
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                      <span className="font-bold text-success">
-                                        {call.payout_amount !== undefined ? `₹${call.payout_amount.toLocaleString()}` : '—'}
-                                      </span>
-                                    </TableCell>
-                                    <TableCell className="text-center">
-                                      {call.status?.toUpperCase() === 'COMPLETED' ? (
-                                        <Badge variant="outline" className="bg-success/10 text-success border-success/30">
-                                          <CheckCircle className="h-3 w-3 mr-1" />
-                                          Completed
-                                        </Badge>
-                                      ) : call.status?.toUpperCase() === 'CANCELLED' ? (
-                                        <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">
-                                          <XCircle className="h-3 w-3 mr-1" />
-                                          Cancelled
-                                        </Badge>
-                                      ) : onHold ? (
-                                        isCallHeldByAdmin(call) ? (
-                                          <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30">
-                                            <Pause className="h-3 w-3 mr-1" />
-                                            Held by Admin
+                                        </div>
+                                      </TableCell>
+                                      <TableCell>
+                                        <div className="max-w-[200px]">
+                                          <p className="text-sm truncate">{call.address || 'N/A'}</p>
+                                          <Badge variant="outline" className="mt-1 text-xs">
+                                            <MapPin className="h-3 w-3 mr-1" />
+                                            {call.pincode || 'N/A'}
                                           </Badge>
-                                        ) : (
+                                        </div>
+                                      </TableCell>
+                                      <TableCell>
+                                        <div>
+                                          <p className="text-sm">{call.engineer_name || 'Not Assigned'}</p>
+                                          {call.engineer_contact && (
+                                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                              <Phone className="h-3 w-3" />
+                                              {call.engineer_contact}
+                                            </p>
+                                          )}
+                                        </div>
+                                      </TableCell>
+                                      <TableCell>
+                                        <Badge
+                                          variant="outline"
+                                          className={cn(
+                                            "flex items-center gap-1 w-fit",
+                                            call.serviceable === false 
+                                              ? callStatusColors.not_serviceable 
+                                              : (callStatusColors[call.status?.toLowerCase() || ''] || callStatusColors.pending)
+                                          )}
+                                        >
+                                          {call.serviceable === false 
+                                            ? callStatusIcons.not_serviceable 
+                                            : (callStatusIcons[call.status?.toLowerCase() || ''] || callStatusIcons.pending)}
+                                          {call.serviceable === false ? "NOT SERVICEABLE" : (call.status || 'Pending')}
+                                        </Badge>
+                                      </TableCell>
+                                      <TableCell>
+                                        <div className="flex -space-x-2 overflow-hidden hover:overflow-visible transition-all">
+                                          {(() => {
+                                            const callImages = getAllProofImages(call);
+                                            return callImages.length > 0 ? (
+                                              callImages.map((img, i) => (
+                                                <div
+                                                  key={i}
+                                                  className="relative w-8 h-8 rounded-full border-2 border-card cursor-pointer hover:z-10 transition-transform hover:scale-125 bg-muted flex items-center justify-center shadow-sm"
+                                                  onClick={() => setPreviewImage(img)}
+                                                >
+                                                  <img
+                                                    src={img}
+                                                    alt={`Proof ${i + 1}`}
+                                                    className="w-full h-full object-cover rounded-full"
+                                                  />
+                                                </div>
+                                              ))
+                                            ) : (
+                                              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center border-2 border-card text-muted-foreground/30">
+                                                <ImageIcon className="h-3.5 w-3.5" />
+                                              </div>
+                                            );
+                                          })()}
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="text-right">
+                                        <span className="font-medium">{call.asset_count || 0}</span>
+                                      </TableCell>
+                                      <TableCell className="text-right">
+                                        <span className="font-bold text-success">
+                                          {call.payout_amount !== undefined ? `₹${call.payout_amount.toLocaleString()}` : '—'}
+                                        </span>
+                                      </TableCell>
+                                      <TableCell className="text-center">
+                                        {call.status?.toUpperCase() === 'COMPLETED' ? (
+                                          <Badge variant="outline" className="bg-success/10 text-success border-success/30">
+                                            <CheckCircle className="h-3 w-3 mr-1" />
+                                            Completed
+                                          </Badge>
+                                        ) : call.status?.toUpperCase() === 'CANCELLED' ? (
+                                          <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">
+                                            <XCircle className="h-3 w-3 mr-1" />
+                                            Cancelled
+                                          </Badge>
+                                        ) : onHold ? (
+                                          status !== 'PAUSED' && (
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={() => handleCallHoldResume(call.call_id, true)}
+                                              disabled={isLoading}
+                                              className="bg-success/10 text-success border-success/30 hover:bg-success/20 h-8 gap-1"
+                                            >
+                                              {isLoading ? (
+                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                              ) : (
+                                                <>
+                                                  <Play className="h-3 w-3" />
+                                                  Resume
+                                                </>
+                                              )}
+                                            </Button>
+                                          )
+                                        ) : canHold ? (
                                           <Button
-                                            variant="default"
+                                            variant="outline"
                                             size="sm"
-                                            onClick={() => handleCallHoldResume(call.call_id, true)}
+                                            onClick={() => handleCallHoldResume(call.call_id, false)}
                                             disabled={isLoading}
-                                            className="bg-success hover:bg-success/90 h-8 gap-1"
+                                            className="border-warning text-warning hover:bg-warning/10 h-8 gap-1"
                                           >
                                             {isLoading ? (
                                               <Loader2 className="h-3 w-3 animate-spin" />
                                             ) : (
                                               <>
-                                                <Play className="h-3 w-3" />
-                                                Resume
+                                                <Pause className="h-3 w-3" />
+                                                Hold
                                               </>
                                             )}
                                           </Button>
-                                        )
-                                      ) : canHold ? (
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() => handleCallHoldResume(call.call_id, false)}
-                                          disabled={isLoading}
-                                          className="border-warning text-warning hover:bg-warning/10 h-8 gap-1"
-                                        >
-                                          {isLoading ? (
-                                            <Loader2 className="h-3 w-3 animate-spin" />
-                                          ) : (
-                                            <>
-                                              <Pause className="h-3 w-3" />
-                                              Hold
-                                            </>
-                                          )}
-                                        </Button>
-                                      ) : (
-                                        <span className="text-xs text-muted-foreground">—</span>
-                                      )}
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              })}
+                                        ) : (
+                                          <span className="text-xs text-muted-foreground">—</span>
+                                        )}
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })
+                              )}
                             </TableBody>
-                          </Table>
+                            </Table>
+                          </div>
                         </ScrollArea>
                       )}
                     </CardContent>

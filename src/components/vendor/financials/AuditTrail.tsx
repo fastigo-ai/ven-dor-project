@@ -9,6 +9,7 @@ import {
   Download 
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,7 @@ interface AuditTrailProps {
 }
 
 export function AuditTrail({ transactions, onCancel, isCancelling }: AuditTrailProps) {
+  const navigate = useNavigate();
   return (
     <Card className="border-none shadow-2xl bg-card/50 backdrop-blur-md overflow-hidden ring-1 ring-border/50">
       <div className="p-4 border-b border-border/50 bg-muted/20">
@@ -92,7 +94,7 @@ export function AuditTrail({ transactions, onCancel, isCancelling }: AuditTrailP
                     variant="outline"
                     size="sm"
                     className="h-7 px-2 rounded-lg border-primary/20 text-primary hover:bg-primary/5 flex items-center gap-1"
-                    onClick={() => window.open(tx.receipt_url, '_blank')}
+                    onClick={() => navigate(`/billing/receipt/${tx._id}`)}
                   >
                     <Download className="h-3 w-3" />
                     <span className="text-[9px] font-black uppercase">Receipt</span>
