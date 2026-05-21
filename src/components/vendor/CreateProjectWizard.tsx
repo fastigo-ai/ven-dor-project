@@ -90,9 +90,7 @@ const supportTypeLabels: Record<string, string> = {
 
 const projectSchema = z.object({
   name: z.string().min(3, "Project name must be at least 3 characters"),
-  supportType: z.enum(supportTypes, {
-    required_error: "Please select a support type",
-  }),
+  supportType: z.string().min(1, "Please select a support type"),
   l1SupportName: z.string().min(2, "L1 support name is required"),
   l1SupportNumber: z
     .string()
@@ -198,6 +196,19 @@ const CreateProjectWizard = ({
   >(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
+
+  // Derived support types from rate cards
+  const dynamicSupportTypes = Array.from(new Set(
+    rateCards
+      .filter(rc => rc.status !== 'archived')
+      .map(rc => rc.support_type)
+  ));
+
+  const formatSupportTypeLabel = (type: string) => {
+    if (supportTypeLabels[type.toLowerCase()]) return supportTypeLabels[type.toLowerCase()];
+    // Capitalize each word
+    return type.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  };
 
   const {
     register,
@@ -412,89 +423,107 @@ const CreateProjectWizard = ({
         });
       }
 
-      // Step 3: API Address Validation with Polling
-      let pollingCount = 0;
-      const MAX_POLLS = 12; // ~30 seconds total
-      let validationResult;
-
+      // Step 3: API Address Validation with SSE (Server-Sent Events)
       setValidationMessage("Initiating address validation...");
+      
+      const { API_BASE_URL } = await import("@/services/apiConfig");
 
-      while (pollingCount < MAX_POLLS) {
-        validationResult = await validateProjectAddresses(projectId);
+      await new Promise<void>((resolve, reject) => {
+        // SSE connection for real-time updates
+        const eventSource = new EventSource(
+          `${API_BASE_URL}/projects/${projectId}/events`,
+          { withCredentials: true }
+        );
 
-        if (validationResult.error) {
-          throw new Error(validationResult.error);
-        }
+        const timeout = setTimeout(() => {
+          eventSource.close();
+          reject(new Error("Validation timed out"));
+        }, 120000); // 2 minute hard timeout
 
-        const apiData = validationResult.data;
-        if (!apiData) throw new Error("No validation data returned");
+        eventSource.onmessage = async (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            console.log("Real-time validation update:", data);
 
-        // Update real-time summary even while processing
-        setValidationSummary({
-          serviceable: apiData.summary?.service_available || 0,
-          unserviceable: apiData.summary?.service_not_available || 0,
-          processing: apiData.summary?.processing_count || 0,
-          isProcessing: apiData.is_processing
-        });
+            if (data.status === "CONNECTED") {
+              setValidationMessage("Connected to real-time stream...");
+              return;
+            }
 
-        if (!apiData.is_processing) {
-          // Task is finished!
-          console.log("Validation complete:", apiData);
+            if (data.message) {
+              setValidationMessage(data.message);
+            }
 
-          const serviceableFromApi = (
-            apiData["Service available locations"] || (apiData as any).serviceable_locations || (apiData as any).service_available_locations || []
-          ).map((s: any) => ({
-            stateName: s.state_name || "",
-            branchName: s.branch_name || "",
-            branchCategory: "",
-            branchCode: s.branch_code || "",
-            address: s.address || "",
-            pincode: s.pincode || "",
-            contactName: s.contact_name || "",
-            contactPhone: s.contact_phone || "",
-            assetsCount: s.assets_count || 0,
-            supportType: s.support_type || "",
-            assetType: s.asset_type || "",
-            serviceable: true,
-            reason: undefined,
-          }));
+            // Periodically refresh the summary counts if needed
+            // (The SSE only sends status updates, not the full count summary)
+            if (data.status === "IN_PROGRESS") {
+               const summaryResult = await validateProjectAddresses(projectId);
+               if (summaryResult.data) {
+                 const apiData = summaryResult.data;
+                 setValidationSummary({
+                   serviceable: apiData.summary?.service_available || 0,
+                   unserviceable: apiData.summary?.service_not_available || 0,
+                   processing: apiData.summary?.processing_count || 0,
+                   isProcessing: apiData.is_processing
+                 });
+               }
+            }
 
-          const nonServiceableFromApi = (
-            apiData.non_serviceable_locations || []
-          ).map((ns) => ({
-            stateName: ns.state_name || "",
-            branchName: ns.branch_name || "",
-            branchCategory: "",
-            branchCode: ns.branch_code || "",
-            address: ns.address || "",
-            pincode: ns.pincode || "",
-            contactName: ns.contact_name || "",
-            contactPhone: ns.contact_phone || "",
-            assetsCount: ns.assets_count || 0,
-            supportType: ns.support_type || "",
-            assetType: ns.asset_type || "",
-            serviceable: false,
-            reason: ns.reason || "No engineer available in this area",
-          }));
+            if (data.status === "SUCCESS") {
+              clearTimeout(timeout);
+              eventSource.close();
+              
+              // One last fetch to get the final location results
+              const finalResult = await validateProjectAddresses(projectId);
+              if (finalResult.data) {
+                const apiData = finalResult.data;
+                const serviceableFromApi = (
+                  apiData["Service available locations"] || (apiData as any).serviceable_locations || (apiData as any).service_available_locations || []
+                ).map((s: any) => ({
+                  ...s,
+                  serviceable: true,
+                }));
 
-          setLocationAnalysis([...serviceableFromApi, ...nonServiceableFromApi]);
-          setCurrentStep(3);
-          return;
-        }
+                const nonServiceableFromApi = (
+                  apiData.non_serviceable_locations || []
+                ).map((ns: any) => ({
+                  ...ns,
+                  serviceable: false,
+                  reason: ns.reason || "No engineer available in this area",
+                }));
 
-        pollingCount++;
-        setValidationMessage(`Validating addresses (${pollingCount}/${MAX_POLLS})...`);
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      }
+                setLocationAnalysis([...serviceableFromApi, ...nonServiceableFromApi]);
+                
+                // Reset processing state and update final summary counts
+                setValidationSummary({
+                  serviceable: apiData.summary?.service_available || serviceableFromApi.length,
+                  unserviceable: apiData.summary?.service_not_available || nonServiceableFromApi.length,
+                  processing: 0,
+                  isProcessing: false
+                });
 
-      // If we reached here, polling timed out
-      setIsValidatingAddresses(false);
-      setValidationMessage("Taking longer than expected...");
-      toast({
-        title: "Validation taking longer than expected",
-        description:
-          "The background task is still running. You can click 'Resume' below or check back later.",
-        variant: "destructive",
+                setCurrentStep(3);
+                resolve();
+              } else {
+                reject(new Error("Failed to fetch final results"));
+              }
+            }
+
+            if (data.status === "FAILED") {
+              clearTimeout(timeout);
+              eventSource.close();
+              reject(new Error(data.message || "Background task failed"));
+            }
+          } catch (err) {
+            console.error("SSE Message Error:", err);
+          }
+        };
+
+        eventSource.onerror = (err) => {
+          console.error("SSE Connection Error:", err);
+          // Don't reject immediately on error, browser will retry
+          // but we can log it.
+        };
       });
     } catch (error) {
       console.error("Address validation error:", error);
@@ -763,7 +792,7 @@ const CreateProjectWizard = ({
               <div className="space-y-2">
                 <Label htmlFor="supportType">Support Type *</Label>
                 <Select
-                  onValueChange={(value: (typeof supportTypes)[number]) =>
+                  onValueChange={(value) =>
                     setValue("supportType", value)
                   }
                 >
@@ -771,11 +800,17 @@ const CreateProjectWizard = ({
                     <SelectValue placeholder="Select support type" />
                   </SelectTrigger>
                   <SelectContent className="bg-background border z-50">
-                    {supportTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {supportTypeLabels[type]}
+                    {dynamicSupportTypes.length > 0 ? (
+                      dynamicSupportTypes.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {formatSupportTypeLabel(type)}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="none" disabled>
+                        No support types available
                       </SelectItem>
-                    ))}
+                    )}
                   </SelectContent>
                 </Select>
                 {errors.supportType && (
@@ -1078,7 +1113,7 @@ const CreateProjectWizard = ({
                     "text-2xl font-bold",
                     validationSummary.isProcessing ? "text-blue-600" : "text-muted-foreground"
                   )}>
-                    {validationSummary.processing}
+                    {validationSummary.isProcessing ? "..." : (validationSummary.processing || 0)}
                   </p>
                   <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
                     Processing
@@ -1454,7 +1489,7 @@ const CreateProjectWizard = ({
               <Button
                 className="flex-1"
                 onClick={handleGoToStep4}
-                disabled={isFetchingCost}
+                disabled={isFetchingCost || validationSummary.isProcessing}
               >
                 {isFetchingCost ? (
                   <>

@@ -18,6 +18,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import VendorDashboard from "./pages/VendorDashboard";
 import VendorProjects from "./pages/VendorProjects";
 import ProjectDetails from "./pages/ProjectDetails";
+import ReceiptPage from "./pages/vendor/billing/ReceiptPage";
 import NotFound from "./pages/NotFound";
 
 import { GoogleOAuthProvider } from '@react-oauth/google';
@@ -44,6 +45,7 @@ const App = () => {
                 <Route path="/login" element={<Login />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/dashboard" element={<VendorDashboard />} />
+                <Route path="/billing/receipt/:transactionId" element={<ReceiptPage />} />
                 <Route path="/projects" element={<VendorProjects />} />
                 <Route path="/projects/:projectId" element={<ProjectDetails />} />
                 <Route path="/register" element={<EmailStep />} />

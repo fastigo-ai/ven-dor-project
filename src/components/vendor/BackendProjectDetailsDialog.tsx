@@ -74,6 +74,8 @@ const callStatusColors: Record<string, string> = {
   DISPATCHED: 'bg-accent/10 text-accent border-accent/30',
   COMPLETED: 'bg-success/10 text-success border-success/30',
   CANCELLED: 'bg-destructive/10 text-destructive border-destructive/30',
+  NOT_SERVICEABLE: 'bg-destructive/10 text-destructive border-destructive/30',
+  FAILED: 'bg-destructive/10 text-destructive border-destructive/30',
 };
 
 const callStatusIcons: Record<string, React.ElementType> = {
@@ -83,6 +85,8 @@ const callStatusIcons: Record<string, React.ElementType> = {
   DISPATCHED: Truck,
   COMPLETED: CheckCircle,
   CANCELLED: AlertCircle,
+  NOT_SERVICEABLE: AlertCircle,
+  FAILED: XCircle,
 };
 
 const supportTypeLabels: Record<string, string> = {
@@ -443,10 +447,19 @@ const BackendProjectDetailsDialog = ({
                                 <div className="flex items-center gap-2 shrink-0">
                                   <Badge
                                     variant="outline"
-                                    className={cn('capitalize text-xs', callStatusColors[statusKey] || callStatusColors['PENDING'])}
+                                    className={cn(
+                                      'capitalize text-xs', 
+                                      call.serviceable === false 
+                                        ? callStatusColors.NOT_SERVICEABLE 
+                                        : (callStatusColors[statusKey] || callStatusColors['PENDING'])
+                                    )}
                                   >
-                                    <StatusIcon className="h-3 w-3 mr-1" />
-                                    {call.status?.toLowerCase() || 'pending'}
+                                    {call.serviceable === false ? (
+                                      <AlertCircle className="h-3 w-3 mr-1" />
+                                    ) : (
+                                      <StatusIcon className="h-3 w-3 mr-1" />
+                                    )}
+                                    {call.serviceable === false ? 'not serviceable' : (call.status?.toLowerCase() || 'pending')}
                                   </Badge>
                                   {isCompleted ? (
                                     <Badge variant="outline" className="bg-success/10 text-success border-success/30 text-xs">

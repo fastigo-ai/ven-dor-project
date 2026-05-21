@@ -21,7 +21,7 @@ import {
 import Logo from '@/components/Logo';
 import StatusBadge from '@/components/StatusBadge';
 import { useVendor } from '@/contexts/VendorContext';
-import { ProjectData } from '@/types/vendor';
+import { Checkbox } from '@/components/ui/checkbox';
 import ProjectDetailsDialog from '@/components/vendor/ProjectDetailsDialog';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -58,6 +58,7 @@ import {
   Pause,
   Play,
   Bell,
+  Trash,
   Check,
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -142,6 +143,10 @@ const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState('vendors');
   const [selectedProjectName, setSelectedProjectName] = useState<string | null>(null);
 
+  // Bulk update states
+  const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
+  const [bulkMaturationDays, setBulkMaturationDays] = useState<number | ''>('');
+
   // Hold call dialog state
   const [showHoldCallDialog, setShowHoldCallDialog] = useState(false);
   const [holdCallId, setHoldCallId] = useState<string | null>(null);
@@ -158,14 +163,9 @@ const AdminPanel = () => {
 
   // Create Rate Card state
   const [showCreateRate, setShowCreateRate] = useState(false);
-  const [createRateForm, setCreateRateForm] = useState<RateCardCreate>({
-    support_type: '',
-    base_price: 0,
-    per_asset_price: 0,
-    sla_minutes: 240,
-    sla_multipliers: { urgent: 1.5, express: 1.25 },
-    vendor_id: null
-  });
+  // Rate Card UI state
+  const [createRateVendorIds, setCreateRateVendorIds] = useState<string[]>([]);
+  const [createRateForm, setCreateRateForm] = useState<RateCardCreate>({ support_type: '', base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 }, vendor_id: null });
 
   // Handle logout
   const handleLogout = async () => {
@@ -369,6 +369,21 @@ const AdminPanel = () => {
     setActionLoading(false);
   };
 
+  const handleArchiveRate = async (rate: RateCard) => {
+    if (!rate._id) return;
+    const newStatus = rate.status === 'archived' ? 'active' : 'archived';
+    setActionLoading(true);
+    const { archiveRateCardApi } = await import('@/services/adminApi');
+    const result = await archiveRateCardApi(rate._id, newStatus);
+    if (result.error) {
+      toast({ title: 'Error', description: result.error, variant: 'destructive' });
+    } else {
+      toast({ title: 'Success', description: `Rate card marked as ${newStatus}` });
+      fetchRateCards();
+    }
+    setActionLoading(false);
+  };
+
   // Initial data fetch
   useEffect(() => {
     fetchVendors();
@@ -393,15 +408,16 @@ const AdminPanel = () => {
       per_asset_price: rate.per_asset_price,
       sla_minutes: rate.sla_minutes,
       sla_multipliers: rate.sla_multipliers || { urgent: 1.5, express: 1.25 },
-      vendor_id: rate.vendor_id || null
+      vendor_id: rate.vendor_id || null,
+      vendor_ids: rate.vendor_ids || []
     });
   };
 
   const handleRateSave = async () => {
-    if (!editingRate) return;
+    if (!editingRate || !editingRate._id) return;
 
     setActionLoading(true);
-    const result = await updateRateCardApi(editingRate.support_type, rateForm);
+    const result = await updateRateCardApi(editingRate._id, rateForm);
 
     if (result.error) {
       toast({ title: 'Error', description: result.error, variant: 'destructive' });
@@ -421,6 +437,23 @@ const AdminPanel = () => {
     setActionLoading(false);
   };
 
+  const handleBulkUpdateMaturation = async () => {
+    if (selectedVendorIds.length === 0 || bulkMaturationDays === '') return;
+
+    setActionLoading(true);
+    const { updateBulkMaturationPolicy } = await import('@/services/adminApi');
+    const result = await updateBulkMaturationPolicy(selectedVendorIds, Number(bulkMaturationDays));
+
+    if (result.error) {
+      toast({ title: 'Error', description: result.error, variant: 'destructive' });
+    } else {
+      toast({ title: 'Success', description: 'Bulk maturation policy updated successfully.' });
+      setSelectedVendorIds([]);
+      setBulkMaturationDays('');
+    }
+    setActionLoading(false);
+  };
+
   // Handle Create Rate Card
   const handleCreateRate = async () => {
     if (!createRateForm.support_type.trim()) {
@@ -428,18 +461,45 @@ const AdminPanel = () => {
       return;
     }
 
-    setActionLoading(true);
-    const result = await addRateCardApi(createRateForm);
+    // Convert support type to camelCase to ensure consistency
+    const toCamelCase = (str: string) => {
+      return str
+        .trim()
+        .split(/[\s_-]+/)
+        .map((word, index) => 
+          index === 0 
+            ? word.toLowerCase() 
+            : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+        )
+        .join('');
+    };
 
-    if (result.error) {
-      toast({ title: 'Error', description: result.error, variant: 'destructive' });
+    const camelCaseSupportType = toCamelCase(createRateForm.support_type);
+    const formToSubmit = { ...createRateForm, support_type: camelCaseSupportType };
+
+    setActionLoading(true);
+    let successCount = 0;
+    
+    if (createRateVendorIds.length === 0) {
+      const result = await addRateCardApi({ ...formToSubmit, vendor_id: null, vendor_ids: [] });
+      if (result.error) toast({ title: 'Error', description: result.error, variant: 'destructive' });
+      else successCount++;
     } else {
-      toast({ title: 'Rate Card Created', description: `${createRateForm.support_type} rate card has been created.` });
-      setShowCreateRate(false);
-      setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 }, vendor_id: null });
-      fetchRateCards(); // Refresh rate cards
+      const result = await addRateCardApi({ ...formToSubmit, vendor_id: null, vendor_ids: createRateVendorIds });
+      if (result.error) {
+        toast({ title: 'Error', description: `Failed: ${result.error}`, variant: 'destructive' });
+      } else {
+        successCount += createRateVendorIds.length;
+      }
     }
 
+    if (successCount > 0) {
+      toast({ title: 'Rate Card Created', description: `Successfully created ${successCount} rate card(s) for ${camelCaseSupportType}.` });
+      setShowCreateRate(false);
+      setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 }, vendor_id: null });
+      setCreateRateVendorIds([]);
+      fetchRateCards();
+    }
     setActionLoading(false);
   };
 
@@ -795,6 +855,34 @@ const AdminPanel = () => {
               </div>
             ) : (
               <div className="space-y-4">
+                {selectedVendorIds.length > 0 && (
+                  <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="font-semibold text-primary">{selectedVendorIds.length} vendor(s) selected</span>
+                      <div className="flex items-center gap-2 ml-4">
+                        <Input 
+                          type="number" 
+                          placeholder="Maturation days" 
+                          value={bulkMaturationDays} 
+                          onChange={(e) => setBulkMaturationDays(e.target.value ? Number(e.target.value) : '')} 
+                          className="w-40 bg-background"
+                          min={1}
+                        />
+                        <Button 
+                          onClick={handleBulkUpdateMaturation} 
+                          disabled={actionLoading || bulkMaturationDays === ''}
+                          size="sm"
+                        >
+                          {actionLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                          Update Policy
+                        </Button>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedVendorIds([])}>
+                      Cancel
+                    </Button>
+                  </div>
+                )}
                 {filteredVendors.map((vendor) => (
                   <div
                     key={vendor._id}
@@ -803,7 +891,24 @@ const AdminPanel = () => {
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-lg gradient-primary flex items-center justify-center text-primary-foreground font-display font-bold text-lg">
+                        <div className="pt-2" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center space-x-2 bg-muted/30 p-2 rounded-lg border border-border">
+                            <Checkbox 
+                              id={`vendor-select-${vendor._id}`}
+                              className="h-5 w-5"
+                              checked={selectedVendorIds.includes(vendor._id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedVendorIds([...selectedVendorIds, vendor._id]);
+                                } else {
+                                  setSelectedVendorIds(selectedVendorIds.filter(id => id !== vendor._id));
+                                }
+                              }}
+                            />
+                            <label htmlFor={`vendor-select-${vendor._id}`} className="text-xs font-medium cursor-pointer text-muted-foreground">Select</label>
+                          </div>
+                        </div>
+                        <div className="w-12 h-12 mt-1 rounded-lg gradient-primary flex items-center justify-center text-primary-foreground font-display font-bold text-lg">
                           {vendor.company_name?.charAt(0) || 'V'}
                         </div>
                         <div>
@@ -1135,7 +1240,8 @@ const AdminPanel = () => {
                   <TableHeader>
                     <TableRow className="bg-muted/50">
                       <TableHead>Support Type</TableHead>
-                      <TableHead>Scope</TableHead>
+                      <TableHead>Target Scope</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead className="text-right">Base Price (₹)</TableHead>
                       <TableHead className="text-right">Per Asset (₹)</TableHead>
                       <TableHead className="text-right">SLA (m)</TableHead>
@@ -1148,7 +1254,7 @@ const AdminPanel = () => {
                       [1, 2, 3].map((i) => <RateCardSkeleton key={i} />)
                     ) : rateCards.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                           No rate cards found. Click "Add Rate Card" to create one.
                         </TableCell>
                       </TableRow>
@@ -1157,7 +1263,13 @@ const AdminPanel = () => {
                         <TableRow key={card._id || `${card.support_type}-${card.vendor_id}`}>
                           <TableCell className="font-medium capitalize">{card.support_type}</TableCell>
                           <TableCell>
-                            {card.vendor_id ? (
+                            {card.vendor_ids && card.vendor_ids.length > 0 ? (
+                              <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
+                                {card.vendor_ids.length === 1 
+                                  ? vendors.find(v => v._id === card.vendor_ids![0])?.company_name || 'Specific Vendor'
+                                  : `${card.vendor_ids.length} Vendors`}
+                              </Badge>
+                            ) : card.vendor_id ? (
                               <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
                                 {vendors.find(v => v._id === card.vendor_id)?.company_name || 'Specific Vendor'}
                               </Badge>
@@ -1165,16 +1277,24 @@ const AdminPanel = () => {
                               <Badge variant="outline" className="text-muted-foreground">Global Default</Badge>
                             )}
                           </TableCell>
+                          <TableCell>
+                            <StatusBadge status={card.status as any || 'active'} size="sm" />
+                          </TableCell>
                           <TableCell className="text-right font-mono">₹{card.base_price}</TableCell>
                           <TableCell className="text-right font-mono">₹{card.per_asset_price}</TableCell>
                           <TableCell className="text-right font-mono">{card.sla_minutes}m</TableCell>
                           <TableCell className="text-right font-mono text-xs">
                             {card.sla_multipliers ? Object.entries(card.sla_multipliers).map(([key, val]) => `${key}: ${val}×`).join(', ') : '-'}
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="text-center space-x-2">
                             <Button size="sm" variant="ghost" onClick={() => handleRateEdit(card)}>
                               <Edit2 className="h-4 w-4" />
                             </Button>
+                            {card._id && (
+                              <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => handleArchiveRate(card)}>
+                                {card.status === 'archived' ? <RefreshCw className="h-4 w-4" /> : <Trash className="h-4 w-4" />}
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))
@@ -1255,7 +1375,10 @@ const AdminPanel = () => {
       {/* Create Rate Card Dialog */}
       <Dialog open={showCreateRate} onOpenChange={(open) => {
         setShowCreateRate(open);
-        if (!open) setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 }, vendor_id: null });
+        if (!open) {
+          setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 }, vendor_id: null });
+          setCreateRateVendorIds([]);
+        }
       }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1268,44 +1391,59 @@ const AdminPanel = () => {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Support Type *</Label>
-                <Select
-                  value={createRateForm.support_type}
-                  onValueChange={(value) => setCreateRateForm({ ...createRateForm, support_type: value })}
-                >
-                  <SelectTrigger className="bg-background">
-                    <SelectValue placeholder="Select support type" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background z-50">
-                    <SelectItem value="pm activity">PM Activity</SelectItem>
-                    <SelectItem value="breakfix">Breakfix</SelectItem>
-                    <SelectItem value="on call">On Call</SelectItem>
-                    <SelectItem value="server call">Server Call</SelectItem>
-                    <SelectItem value="desktop installation">Desktop Installation</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-col space-y-2">
+                  <Input 
+                    placeholder="e.g. pm activity, breakfix, network setup..." 
+                    value={createRateForm.support_type}
+                    onChange={(e) => setCreateRateForm({ ...createRateForm, support_type: e.target.value })}
+                  />
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {['pm activity', 'breakfix', 'on call', 'server call', 'desktop installation'].map(suggestion => (
+                      <Badge 
+                        key={suggestion} 
+                        variant="outline" 
+                        className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
+                        onClick={() => setCreateRateForm({ ...createRateForm, support_type: suggestion })}
+                      >
+                        {suggestion}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2">
                 <Label>Target Scope (Vendor) *</Label>
-                <Select
-                  value={createRateForm.vendor_id || "global"}
-                  onValueChange={(value) => setCreateRateForm({ ...createRateForm, vendor_id: value === "global" ? null : value })}
-                >
-                  <SelectTrigger className="bg-background">
-                    <SelectValue placeholder="Select target scope" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background z-50">
-                    <SelectItem value="global">Global Default (All Vendors)</SelectItem>
-                    {vendors.filter(v => v.status === 'APPROVED').map(vendor => (
-                      <SelectItem key={vendor._id} value={vendor._id}>
-                        {vendor.company_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="bg-background border rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="vendor-global" 
+                      checked={createRateVendorIds.length === 0}
+                      onCheckedChange={() => setCreateRateVendorIds([])}
+                    />
+                    <label htmlFor="vendor-global" className="text-sm font-medium cursor-pointer">Global Default (All Vendors)</label>
+                  </div>
+                  <hr className="my-2 border-border" />
+                  {vendors.filter(v => v.status === 'APPROVED').map(vendor => (
+                    <div key={vendor._id} className="flex items-center space-x-2 py-0.5">
+                      <Checkbox 
+                        id={`vendor-scope-${vendor._id}`}
+                        checked={createRateVendorIds.includes(vendor._id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setCreateRateVendorIds([...createRateVendorIds, vendor._id]);
+                          } else {
+                            setCreateRateVendorIds(createRateVendorIds.filter(id => id !== vendor._id));
+                          }
+                        }}
+                      />
+                      <label htmlFor={`vendor-scope-${vendor._id}`} className="text-sm cursor-pointer">{vendor.company_name}</label>
+                    </div>
+                  ))}
+                </div>
                 <p className="text-xs text-muted-foreground ">
-                  {createRateForm.vendor_id
-                    ? "This rate will only apply to the selected vendor, overriding global defaults."
+                  {createRateVendorIds.length > 0
+                    ? `This rate will only apply to the ${createRateVendorIds.length} selected vendor(s), overriding global defaults.`
                     : "This will be the standard rate for all vendors who don't have an override."}
                 </p>
               </div>
@@ -1364,6 +1502,7 @@ const AdminPanel = () => {
                   onClick={() => {
                     setShowCreateRate(false);
                     setCreateRateForm({ support_type: '', base_price: 0, per_asset_price: 0, sla_minutes: 240, sla_multipliers: { urgent: 1.5, express: 1.25 }, vendor_id: null });
+                    setCreateRateVendorIds([]);
                   }}
                   disabled={actionLoading}
                 >
