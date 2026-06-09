@@ -7,7 +7,7 @@ export const getApiBaseUrl = () => {
      window.location.hostname.startsWith('192.168.'));
 
   return envUrl || (isLocal 
-    ? `http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:8000`
+    ? `http://localhost:8000`
     : 'https://door2fyvendor-gv4g4.ondigitalocean.app');
 };
 

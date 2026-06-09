@@ -179,7 +179,7 @@ const AdminPanel = () => {
       fetchAdminNotifications(),
       fetchAdminUnreadCount()
     ]);
-    
+
     if (notifs.data) setAdminNotifications(notifs.data);
     if (count.data) setUnreadAdminCount(count.data.unread_count);
   };
@@ -204,7 +204,7 @@ const AdminPanel = () => {
 
     const { getVendorFinancialSummary } = await import('@/services/adminApi');
     const result = await getVendorFinancialSummary(vendor._id);
-    
+
     if (result.data) {
       setVendorSummary(result.data);
     }
@@ -466,9 +466,9 @@ const AdminPanel = () => {
       return str
         .trim()
         .split(/[\s_-]+/)
-        .map((word, index) => 
-          index === 0 
-            ? word.toLowerCase() 
+        .map((word, index) =>
+          index === 0
+            ? word.toLowerCase()
             : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
         )
         .join('');
@@ -479,7 +479,7 @@ const AdminPanel = () => {
 
     setActionLoading(true);
     let successCount = 0;
-    
+
     if (createRateVendorIds.length === 0) {
       const result = await addRateCardApi({ ...formToSubmit, vendor_id: null, vendor_ids: [] });
       if (result.error) toast({ title: 'Error', description: result.error, variant: 'destructive' });
@@ -643,11 +643,7 @@ const AdminPanel = () => {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <Link to="/">
-              <Button variant="outline" size="sm" className="hidden sm:flex">
-                Exit Admin
-              </Button>
-            </Link>
+
 
             {/* Notification Bell */}
             <Popover>
@@ -666,9 +662,9 @@ const AdminPanel = () => {
                   <h3 className="font-black text-xs uppercase tracking-widest">Notifications</h3>
                   <div className="flex items-center gap-2">
                     {unreadAdminCount > 0 && (
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         className="h-6 px-2 text-[9px] font-black uppercase tracking-tighter hover:bg-primary/10 hover:text-primary"
                         onClick={async () => {
                           const { markAllAdminNotificationsRead } = await import('@/services/adminApi');
@@ -691,8 +687,8 @@ const AdminPanel = () => {
                   ) : (
                     <div className="flex flex-col">
                       {adminNotifications.map((notif) => (
-                        <div 
-                          key={notif._id} 
+                        <div
+                          key={notif._id}
                           className={cn(
                             "p-4 border-b border-border/40 hover:bg-muted/50 transition-colors cursor-pointer relative group",
                             !notif.is_read && "bg-primary/5"
@@ -860,16 +856,16 @@ const AdminPanel = () => {
                     <div className="flex items-center gap-3">
                       <span className="font-semibold text-primary">{selectedVendorIds.length} vendor(s) selected</span>
                       <div className="flex items-center gap-2 ml-4">
-                        <Input 
-                          type="number" 
-                          placeholder="Maturation days" 
-                          value={bulkMaturationDays} 
-                          onChange={(e) => setBulkMaturationDays(e.target.value ? Number(e.target.value) : '')} 
+                        <Input
+                          type="number"
+                          placeholder="Maturation days"
+                          value={bulkMaturationDays}
+                          onChange={(e) => setBulkMaturationDays(e.target.value ? Number(e.target.value) : '')}
                           className="w-40 bg-background"
                           min={1}
                         />
-                        <Button 
-                          onClick={handleBulkUpdateMaturation} 
+                        <Button
+                          onClick={handleBulkUpdateMaturation}
                           disabled={actionLoading || bulkMaturationDays === ''}
                           size="sm"
                         >
@@ -893,7 +889,7 @@ const AdminPanel = () => {
                       <div className="flex items-start gap-4">
                         <div className="pt-2" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center space-x-2 bg-muted/30 p-2 rounded-lg border border-border">
-                            <Checkbox 
+                            <Checkbox
                               id={`vendor-select-${vendor._id}`}
                               className="h-5 w-5"
                               checked={selectedVendorIds.includes(vendor._id)}
@@ -1265,7 +1261,7 @@ const AdminPanel = () => {
                           <TableCell>
                             {card.vendor_ids && card.vendor_ids.length > 0 ? (
                               <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
-                                {card.vendor_ids.length === 1 
+                                {card.vendor_ids.length === 1
                                   ? vendors.find(v => v._id === card.vendor_ids![0])?.company_name || 'Specific Vendor'
                                   : `${card.vendor_ids.length} Vendors`}
                               </Badge>
@@ -1392,16 +1388,16 @@ const AdminPanel = () => {
               <div className="space-y-2">
                 <Label>Support Type *</Label>
                 <div className="flex flex-col space-y-2">
-                  <Input 
-                    placeholder="e.g. pm activity, breakfix, network setup..." 
+                  <Input
+                    placeholder="e.g. pm activity, breakfix, network setup..."
                     value={createRateForm.support_type}
                     onChange={(e) => setCreateRateForm({ ...createRateForm, support_type: e.target.value })}
                   />
                   <div className="flex flex-wrap gap-2 pt-1">
                     {['pm activity', 'breakfix', 'on call', 'server call', 'desktop installation'].map(suggestion => (
-                      <Badge 
-                        key={suggestion} 
-                        variant="outline" 
+                      <Badge
+                        key={suggestion}
+                        variant="outline"
                         className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
                         onClick={() => setCreateRateForm({ ...createRateForm, support_type: suggestion })}
                       >
@@ -1416,8 +1412,8 @@ const AdminPanel = () => {
                 <Label>Target Scope (Vendor) *</Label>
                 <div className="bg-background border rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
                   <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id="vendor-global" 
+                    <Checkbox
+                      id="vendor-global"
                       checked={createRateVendorIds.length === 0}
                       onCheckedChange={() => setCreateRateVendorIds([])}
                     />
@@ -1426,7 +1422,7 @@ const AdminPanel = () => {
                   <hr className="my-2 border-border" />
                   {vendors.filter(v => v.status === 'APPROVED').map(vendor => (
                     <div key={vendor._id} className="flex items-center space-x-2 py-0.5">
-                      <Checkbox 
+                      <Checkbox
                         id={`vendor-scope-${vendor._id}`}
                         checked={createRateVendorIds.includes(vendor._id)}
                         onCheckedChange={(checked) => {
