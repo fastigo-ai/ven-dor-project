@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
 import { useVendor } from "@/contexts/VendorContext";
 import { RateCard } from "@/types/vendor";
 import { toast } from "@/hooks/use-toast";
@@ -158,6 +159,8 @@ const CreateProjectWizard = ({
 
   // Step 1 data
   const [projectData, setProjectData] = useState<ProjectFormData | null>(null);
+
+  const [validationProgress, setValidationProgress] = useState<{current: number, total: number} | null>(null);
 
   // Step 2 data
   const [uploadType, setUploadType] = useState<UploadType>(null);
@@ -457,6 +460,9 @@ const CreateProjectWizard = ({
             // Periodically refresh the summary counts if needed
             // (The SSE only sends status updates, not the full count summary)
             if (data.status === "IN_PROGRESS") {
+               if (data.progress !== undefined && data.total !== undefined) {
+                 setValidationProgress({ current: data.progress, total: data.total });
+               }
                const summaryResult = await validateProjectAddresses(projectId);
                if (summaryResult.data) {
                  const apiData = summaryResult.data;
@@ -689,6 +695,7 @@ const CreateProjectWizard = ({
     setProjectStatus(null);
     setApiProjectId(null);
     setIsValidatingAddresses(false);
+    setValidationProgress(null);
     setBackendTotalCost(null);
     setIsFetchingCost(false);
     setShowConfirmDialog(false);
@@ -1427,6 +1434,15 @@ const CreateProjectWizard = ({
           )}
           {currentStep === 2 && (
             <div className="space-y-4">
+              {validationProgress && isValidatingAddresses && (
+                <div className="space-y-2 mb-4 px-1">
+                  <div className="flex justify-between text-xs text-muted-foreground font-medium">
+                    <span>Geocoding locations...</span>
+                    <span>{Math.round((validationProgress.current / validationProgress.total) * 100)}%</span>
+                  </div>
+                  <Progress value={(validationProgress.current / validationProgress.total) * 100} className="h-2" />
+                </div>
+              )}
               <div className="flex gap-3">
                 <Button
                   type="button"
