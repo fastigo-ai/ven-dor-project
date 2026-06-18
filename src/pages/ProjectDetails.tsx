@@ -50,6 +50,7 @@ import {
   resumeProject,
   resumeProjectProcessing,
   activateProject,
+  redispatchCall,
   ProjectCallRow,
 } from '@/services/projectApi';
 import { getDraftProjectStep } from '@/utils/projectStatus';
@@ -315,12 +316,14 @@ const ProjectDetails = () => {
             isProcessing: apiData.is_processing
           });
 
+          // Processing complete or processing, format results for table
+          formatValidationResults(apiData);
+
           // If still processing, start polling
           if (apiData.is_processing) {
             startPollingValidation();
           } else {
-            // Processing complete, format results for table
-            formatValidationResults(apiData);
+            setIsValidatingAddresses(false);
           }
         }
       }
@@ -363,7 +366,7 @@ const ProjectDetails = () => {
               isProcessing: apiData.is_processing
             });
 
-            if (!apiData.is_processing) {
+            if (!apiData.is_processing || data.status === "SUCCESS") {
               eventSource.close();
               formatValidationResults(apiData);
               toast({ title: "Validation Complete", description: "Your addresses have been verified." });
@@ -615,6 +618,39 @@ const ProjectDetails = () => {
       toast({
         title: 'Error',
         description: 'Failed to update call status',
+        variant: 'destructive',
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Handle redispatch call
+  const handleCallRedispatch = async (callId: string) => {
+    if (!projectId) return;
+
+    setActionLoading(callId);
+    try {
+      const result = await redispatchCall(projectId, callId);
+
+      if (result.error) {
+        toast({
+          title: 'Error',
+          description: result.error,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Success',
+          description: 'Call redispatched successfully',
+        });
+        // Reload project details
+        loadProjectDetails(projectId);
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to redispatch call',
         variant: 'destructive',
       });
     } finally {
@@ -953,7 +989,7 @@ const ProjectDetails = () => {
                                 Validation Results
                               </CardTitle>
                               {!validationSummary.isProcessing && (
-                                <Button size="sm" onClick={() => loadProjectDetails(projectId)} variant="ghost" className="h-8 gap-1">
+                                <Button size="sm" onClick={() => checkAndResumeValidation()} variant="ghost" className="h-8 gap-1">
                                   <RefreshCw className="h-3 w-3" /> Refresh
                                 </Button>
                               )}
@@ -1454,6 +1490,7 @@ const ProjectDetails = () => {
                             <SelectItem value="assigned">Assigned</SelectItem>
                             <SelectItem value="completed">Completed</SelectItem>
                             <SelectItem value="hold">On Hold</SelectItem>
+                            <SelectItem value="expired">Expired</SelectItem>
                             <SelectItem value="failed">Not Serviceable</SelectItem>
                           </SelectContent>
                         </Select>
@@ -1590,6 +1627,23 @@ const ProjectDetails = () => {
                                             <XCircle className="h-3 w-3 mr-1" />
                                             Cancelled
                                           </Badge>
+                                        ) : call.status?.toUpperCase() === 'EXPIRED' ? (
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleCallRedispatch(call.call_id)}
+                                            disabled={isLoading}
+                                            className="bg-primary/10 text-primary border-primary/30 hover:bg-primary/20 h-8 gap-1"
+                                          >
+                                            {isLoading ? (
+                                              <Loader2 className="h-3 w-3 animate-spin" />
+                                            ) : (
+                                              <>
+                                                <RefreshCw className="h-3 w-3" />
+                                                Redispatch
+                                              </>
+                                            )}
+                                          </Button>
                                         ) : onHold ? (
                                           status !== 'PAUSED' && (
                                             <Button
